@@ -1,0 +1,59 @@
+[gd_scene load_steps=4 format=3 uid="uid://dimg28eadvy58"]
+
+[ext_resource type="Script" path="res://Nodes/GlobalRefEditor.cs" id="1_nbmkg"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_f1r50"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_k5e7t"]
+bg_color = Color(1, 1, 1, 1)
+
+[node name="GlobalRefEditor" type="PanelContainer" node_paths=PackedStringArray("NameLabel", "NameContainer", "DriveCheckBox", "ValueEditParent")]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_f1r50")
+script = ExtResource("1_nbmkg")
+NameLabel = NodePath("MarginContainer/VBoxContainer/PanelContainer/Label")
+NameContainer = NodePath("MarginContainer/VBoxContainer/PanelContainer")
+DriveCheckBox = NodePath("MarginContainer/VBoxContainer/HBoxContainer/PanelContainer/CheckBox")
+ValueEditParent = NodePath("MarginContainer/VBoxContainer/HBoxContainer/EditorContainer")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_k5e7t")
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer/PanelContainer"]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+text = "Reference"
+horizontal_alignment = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="EditorContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PanelContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+
+[node name="VSeparator" type="VSeparator" parent="MarginContainer/VBoxContainer/HBoxContainer/PanelContainer"]
+layout_mode = 2
+
+[node name="CheckBox" type="CheckBox" parent="MarginContainer/VBoxContainer/HBoxContainer/PanelContainer"]
+layout_mode = 2
+text = "Drive"
