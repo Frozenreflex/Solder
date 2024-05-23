@@ -112,7 +112,10 @@ public partial class EditorRoot : Node
         NodeBrowserSearchBar.TextChanged += NodeBrowserSearchBarOnTextChanged;
         
         //initialize nodebrowser
-        CreateTreeNodes(null, NodeMaps.NodeCategoryTree);
+        var tree = NodeMaps.NodeCategoryTree;
+        var realRoot = tree["ProtoFlux"]?["Runtimes"]?["Execution"]?["Nodes"];
+        
+        CreateTreeNodes(null, realRoot ?? tree);
         
         //nodegraph
         NodeGraph.DeleteNodesRequest += NodeGraphOnDeleteNodesRequest;

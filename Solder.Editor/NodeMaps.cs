@@ -122,6 +122,8 @@ public class CategoryMapNode
     public readonly Dictionary<string, CategoryMapNode> Subcategories;
     public readonly List<NodeCategoryMap> Nodes;
 
+    public CategoryMapNode this[string name] => Subcategories.GetValueOrDefault(name);
+
     public CategoryMapNode(string[] currentPath, Dictionary<Type, CategoryAttribute> data, List<string[]> allPaths)
     {
         CurrentPath = currentPath;
