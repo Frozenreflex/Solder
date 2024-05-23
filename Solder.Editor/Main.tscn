@@ -12,7 +12,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Root" type="Node" parent="." node_paths=PackedStringArray("NodeBrowserTree", "NodeBrowserSearchBar", "CreateCommentButton", "NodeGraph", "HoverTextRoot", "HoverTextLabel", "GenericTypeLabel", "GenericTypeCreateButton", "GenericTypeRoot", "GenericTypePresetRoot", "SaveDirectoryLabel", "SaveDirectorySetButton", "SaveNameEdit", "SaveButton", "LoadButton", "TypeNameMap", "RightClickRoot", "RightClickItemRoot")]
+[node name="Root" type="Node" parent="." node_paths=PackedStringArray("NodeBrowserTree", "NodeBrowserSearchBar", "CreateCommentButton", "NodeGraph", "HoverTextRoot", "HoverTextLabel", "GenericTypeLabel", "GenericTypeCreateButton", "GenericTypeRoot", "GenericTypePresetRoot", "SaveDirectoryLabel", "SaveDirectorySetButton", "SaveNameEdit", "SaveButton", "LoadButton", "TypeNameMap", "RightClickRoot", "RightClickItemRoot", "CreditLabel")]
 script = ExtResource("1_mnwo8")
 NodeBrowserTree = NodePath("../PanelContainer/HBoxContainer/NodeSelectorContainer/Tree")
 NodeBrowserSearchBar = NodePath("../PanelContainer/HBoxContainer/NodeSelectorContainer/SearchBar")
@@ -32,6 +32,7 @@ LoadButton = NodePath("../PanelContainer/HBoxContainer/TabContainer/Save/VBoxCon
 TypeNameMap = NodePath("../PanelContainer/HBoxContainer/TabContainer/Imports")
 RightClickRoot = NodePath("../RightClickRoot")
 RightClickItemRoot = NodePath("../RightClickRoot/VBoxContainer")
+CreditLabel = NodePath("../PanelContainer/HBoxContainer/TabContainer/Save/VBoxContainer/RichTextLabel")
 
 [node name="PanelContainer" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -67,6 +68,7 @@ text = "Create Comment"
 [node name="GraphEdit" type="GraphEdit" parent="PanelContainer/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
+scroll_offset = Vector2(0, -279)
 right_disconnects = true
 show_zoom_label = true
 script = ExtResource("2_ljx1q")
@@ -117,6 +119,12 @@ text = "Save"
 [node name="LoadButton" type="Button" parent="PanelContainer/HBoxContainer/TabContainer/Save/VBoxContainer"]
 layout_mode = 2
 text = "Load"
+
+[node name="RichTextLabel" type="RichTextLabel" parent="PanelContainer/HBoxContainer/TabContainer/Save/VBoxContainer"]
+layout_mode = 2
+bbcode_enabled = true
+text = "[url=https://github.com/Frozenreflex/Solder][color=CORNFLOWER_BLUE]Solder[/color][/url] created by [url=https://github.com/Frozenreflex][color=CORNFLOWER_BLUE]Frozenreflex[/color][/url]"
+fit_content = true
 
 [node name="Generics" type="PanelContainer" parent="PanelContainer/HBoxContainer/TabContainer"]
 visible = false

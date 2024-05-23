@@ -74,6 +74,8 @@ public partial class EditorRoot : Node
 
     [Export] public PanelContainer RightClickRoot { get; private set; }
     [Export] public VBoxContainer RightClickItemRoot { get; private set; }
+    
+    [Export] public RichTextLabel CreditLabel;
 
     public string StoredSavePath;
 
@@ -138,6 +140,8 @@ public partial class EditorRoot : Node
         foreach (var all in TypeMap.AllImpulseTypes) NodeGraph.AddValidConnectionType(all, TypeMap.OperationType);
         foreach (var async in TypeMap.AsynchronousImpulseTypes) NodeGraph.AddValidConnectionType(async, TypeMap.AsyncOperationType);
         TypeMap.TypeMapUpdated += TypeMapOnTypeMapUpdated;
+        
+        CreditLabel.MetaClicked += meta => OS.ShellOpen(meta.AsString());
         
         TypeNameMap.Regenerate();
         
