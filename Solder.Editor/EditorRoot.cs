@@ -116,6 +116,7 @@ public partial class EditorRoot : Node
         var realRoot = tree["ProtoFlux"]?["Runtimes"]?["Execution"]?["Nodes"];
         
         CreateTreeNodes(null, realRoot ?? tree);
+        NodeBrowserTree.GetRoot().Collapsed = false;
         
         //nodegraph
         NodeGraph.DeleteNodesRequest += NodeGraphOnDeleteNodesRequest;
