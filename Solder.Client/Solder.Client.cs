@@ -7,7 +7,6 @@ using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.ProtoFlux;
 using HarmonyLib;
-using Leap;
 using ProtoFlux.Core;
 using ResoniteModLoader;
 
