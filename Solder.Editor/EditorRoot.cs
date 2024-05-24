@@ -457,6 +457,8 @@ public partial class EditorRoot : Node
                 CreateRightClickConnectMenuButton("Local Fire On False", typeof(FireOnLocalTrue));
                 CreateRightClickConnectMenuButton("Local Fire While True", typeof(LocalFireWhileTrue));
             }
+            
+            FakeCoderRightClickButton<T>("Unpack");
         }
         else
         {
@@ -508,6 +510,8 @@ public partial class EditorRoot : Node
             
             var dynamicInputType = (unmanaged ? typeof(DynamicVariableValueInput<>) : typeof(DynamicVariableObjectInput<>)).MakeGenericType(realType);
             CreateRightClickConnectMenuButton("Dynamic Input", dynamicInputType);
+            
+            FakeCoderRightClickButton<T>("Pack");
         }
         
         if (realType.IsEnum)
@@ -658,13 +662,10 @@ public partial class EditorRoot : Node
 
             if (lastIsOutput)
             {
-                if (FakeCoder<T>.SupportsComparison)
-                {
-                    CreateRightClickConnectMenuButton(">", FakeCoder<T>.GreaterThanNode, parent: operators);
-                    CreateRightClickConnectMenuButton("\u2265", FakeCoder<T>.GreaterOrEqualNode, parent: operators);
-                    CreateRightClickConnectMenuButton("<", FakeCoder<T>.LessThanNode, parent: operators);
-                    CreateRightClickConnectMenuButton("\u2264", FakeCoder<T>.LessOrEqualNode, parent: operators);
-                }
+                FakeCoderRightClickButton<T>("GreaterThan", ">", parent: operators);
+                FakeCoderRightClickButton<T>("GreaterOrEqual", "\u2265", parent: operators);
+                FakeCoderRightClickButton<T>("LessThan", "<", parent: operators);
+                FakeCoderRightClickButton<T>("LessOrEqual", "\u2264", parent: operators);
             }
             
             if (Coder<T>.SupportsAbs) 
@@ -684,29 +685,26 @@ public partial class EditorRoot : Node
                 CreateRightClickConnectMenuButton("Smooth Lerp", typeof(ValueSmoothLerp<>).MakeGenericType(realType), parent: math);
             if (Coder<T>.SupportsRepeat) 
                 CreateRightClickConnectMenuButton("Repeat", typeof(ValueRepeat<>).MakeGenericType(realType), parent: math);
-            if (FakeCoder<T>.SupportsStandardBooleanOperations)
-            {
-                CreateRightClickConnectMenuButton("AND", FakeCoder<T>.ANDNode, parent: boolean);
-                CreateRightClickConnectMenuButton("NAND", FakeCoder<T>.NANDNode, parent: boolean);
-                CreateRightClickConnectMenuButton("NOR", FakeCoder<T>.NORNode, parent: boolean);
-                CreateRightClickConnectMenuButton("NOT", FakeCoder<T>.NOTNode, parent: boolean);
-                CreateRightClickConnectMenuButton("OR", FakeCoder<T>.ORNode, parent: boolean);
-                CreateRightClickConnectMenuButton("XOR", FakeCoder<T>.XORNode, parent: boolean);
-                CreateRightClickConnectMenuButton("XNOR", FakeCoder<T>.XNORNode, parent: boolean);
-            }
-            if (FakeCoder<T>.SupportsBooleanShifting)
-            {
-                CreateRightClickConnectMenuButton("Shift Left", FakeCoder<T>.ShiftLeftNode, parent: boolean);
-                CreateRightClickConnectMenuButton("Shift Right", FakeCoder<T>.ShiftRightNode, parent: boolean);
-            }
-            if (FakeCoder<T>.SupportsBooleanRotation)
-            {
-                CreateRightClickConnectMenuButton("Rotate Left", FakeCoder<T>.RotateLeftNode, parent: boolean);
-                CreateRightClickConnectMenuButton("Rotate Right", FakeCoder<T>.RotateRightNode, parent: boolean);
-            }
+            
+            FakeCoderRightClickButton<T>("AND", "&", parent: operators);
+            FakeCoderRightClickButton<T>("OR", "|", parent: operators);
+            FakeCoderRightClickButton<T>("NOT", "!", parent: operators);
+            FakeCoderRightClickButton<T>("NAND", parent: operators);
+            FakeCoderRightClickButton<T>("NOR", parent: operators);
+            FakeCoderRightClickButton<T>("XOR", parent: operators);
+            FakeCoderRightClickButton<T>("XNOR", parent: operators);
+            
+            FakeCoderRightClickButton<T>("ShiftLeft", "<<", parent: operators);
+            FakeCoderRightClickButton<T>("ShiftRight", ">>", parent: operators);
+            FakeCoderRightClickButton<T>("RotateLeft", "\u21ba", parent: operators);
+            FakeCoderRightClickButton<T>("RotateRight", "\u21bb", parent: operators);
         }
     }
 
+    private void FakeCoderRightClickButton<T>(string nodeName, string displayName = null, int isOutIndex = 0, int isInIndex = 0, Control parent = null)
+    {
+        if (FakeCoder<T>.Supports(nodeName, out var nodeType)) CreateRightClickConnectMenuButton(displayName ?? nodeName, nodeType, isOutIndex, isInIndex, parent);
+    }
     private void NodeBrowserSearchBarOnTextChanged(string newtext)
     {
         if (string.IsNullOrWhiteSpace(newtext)) ShowRecursive(NodeBrowserTree.GetRoot());
