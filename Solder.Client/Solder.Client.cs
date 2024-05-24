@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -93,7 +94,7 @@ public static class ProtoFluxToolPatch
             foreach (var names in deserialize.ImportNames)
             {
                 var type = names.Type.GetType(ResoniteScriptDeserializer.AllTypes);
-                var valueType = type.IsUnmanaged();
+                var valueType = type.GetInterfaces().All(i => i != typeof(IWorldElement));
                 var count = names.Names.Count;
                 try
                 {
