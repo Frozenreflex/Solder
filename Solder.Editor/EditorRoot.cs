@@ -865,17 +865,6 @@ public partial class EditorRoot : Node
         HoverTextRoot.GlobalPosition = HoverTextRoot.GetViewport().GetMousePosition();
         HoverTextRoot.ResetSize();
         _canHide = true;
-        
-        /*
-        if (Random.Shared.Next(128) == 0)
-        {
-            GD.Print(NodeBrowserTree.GetMinimumSize());
-        }
-        */
-
-        //NodeBrowserTree.CustomMinimumSize = new Vector2(NodeBrowserTree.GetColumnWidth(0), 0);
-        //NodeBrowserTree.Size
-        //NodeBrowserTree.ResetSize();
     }
 
     private void NodeGraphOnDisconnectionRequest(StringName fromnode, long fromport, StringName tonode, long toport)
