@@ -136,7 +136,7 @@ public partial class EditorRoot : Node
         SaveDirectorySetButton.Pressed  += SaveDirectorySetButtonOnPressed;
         
         //right click stuff
-        RightClickPopupMenu.IdPressed += RightClickPopupMenuOnIdPressed;
+        RightClickPopupMenu.IdPressed += id => { PopupMenuOnIdPressed(RightClickPopupMenu, (int)id); };
         
         UpdateGenericCreation();
         foreach (var all in TypeMap.AllImpulseTypes) NodeGraph.AddValidConnectionType(all, TypeMap.OperationType);
@@ -149,10 +149,9 @@ public partial class EditorRoot : Node
         
         LoadPath();
     }
-
-    private void RightClickPopupMenuOnIdPressed(long id)
+    private void PopupMenuOnIdPressed(PopupMenu menu, int id)
     {
-        RightClickPopupMenu.GetItemMetadata((int)id).As<ActionMetadata>()?.Action();
+        menu.GetItemMetadata(id).As<ActionMetadata>()?.Action();
     }
 
     private void NodeGraphOnPasteNodesRequest()
@@ -247,7 +246,7 @@ public partial class EditorRoot : Node
     private PopupMenu AddPopupMenuSubmenu(PopupMenu menu, string name)
     {
         var submenu = new PopupMenu();
-        submenu.IdPressed += RightClickPopupMenuOnIdPressed;
+        submenu.IdPressed += id => { PopupMenuOnIdPressed(submenu, (int)id); };
         menu.AddChild(submenu);
         submenu.Name = name;
         menu.AddSubmenuItem(name, name);
