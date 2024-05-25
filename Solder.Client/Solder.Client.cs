@@ -94,7 +94,7 @@ public static class ProtoFluxToolPatch
             foreach (var names in deserialize.ImportNames)
             {
                 var type = names.Type.GetType(ResoniteScriptDeserializer.AllTypes);
-                var valueType = type.GetInterfaces().All(i => i != typeof(IWorldElement));
+                var valueType = !type.GetInterfaces().Contains(typeof(IWorldElement));
                 var count = names.Names.Count;
                 try
                 {

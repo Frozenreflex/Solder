@@ -70,10 +70,8 @@ public partial class EditorRoot : Node
     [Export] public Button LoadButton { get; private set; }
     
     [Export] public TypeNameMap TypeNameMap { get; private set; }
-
-
-    [Export] public PanelContainer RightClickRoot { get; private set; }
-    [Export] public VBoxContainer RightClickItemRoot { get; private set; }
+    
+    [Export] public PopupMenu RightClickPopupMenu { get; private set; }
     
     [Export] public RichTextLabel CreditLabel;
 
@@ -96,6 +94,7 @@ public partial class EditorRoot : Node
     private StringName _lastFromNode;
     private long _lastFromPort;
     private bool _lastIsOutput;
+    private Vector2 _lastRightClickPosition;
 
     private string _copy;
     public override void _Ready()
@@ -137,8 +136,7 @@ public partial class EditorRoot : Node
         SaveDirectorySetButton.Pressed  += SaveDirectorySetButtonOnPressed;
         
         //right click stuff
-        RightClickRoot.Visible = false;
-        RightClickRoot.MouseExited += HideRightClickMenu;
+        RightClickPopupMenu.IdPressed += RightClickPopupMenuOnIdPressed;
         
         UpdateGenericCreation();
         foreach (var all in TypeMap.AllImpulseTypes) NodeGraph.AddValidConnectionType(all, TypeMap.OperationType);
@@ -151,6 +149,12 @@ public partial class EditorRoot : Node
         
         LoadPath();
     }
+
+    private void RightClickPopupMenuOnIdPressed(long id)
+    {
+        RightClickPopupMenu.GetItemMetadata((int)id).As<ActionMetadata>()?.Action();
+    }
+
     private void NodeGraphOnPasteNodesRequest()
     {
         if (string.IsNullOrWhiteSpace(_copy)) return;
@@ -175,61 +179,62 @@ public partial class EditorRoot : Node
     private void NodeGraphOnGuiInput(InputEvent @event)
     {
         if (@event is InputEventMouseButton button && button.ButtonIndex == MouseButton.Right && button.Pressed)
-            CallDeferred(MethodName.RightClickMenu);
+            CallDeferred(MethodName.DeferRightClickMenu);
+    }
+    private void DeferRightClickMenu() => CallDeferred(MethodName.RightClickMenu);
+
+    private void SetLastRightClickPosition() => _lastRightClickPosition = (NodeGraph.GetLocalMousePosition() + NodeGraph.ScrollOffset) / NodeGraph.Zoom;
+
+    private void ShowRightClickPopup()
+    {
+        SetLastRightClickPosition();
+        RightClickPopupMenu.Clear();
+        foreach (var c in RightClickPopupMenu.GetChildren().OfType<PopupMenu>().ToList())
+        {
+            RightClickPopupMenu.RemoveChild(c);
+            c.QueueFree();
+        }
+
+        CallDeferred(MethodName.PopupRightClickMenu);
+    }
+
+    private void PopupRightClickMenu()
+    {
+        var targetPosition = (Vector2I)(NodeGraph.GetGlobalMousePosition() - Vector2.One * 4);
+        var targetSize = (Vector2I)RightClickPopupMenu.GetContentsMinimumSize();
+
+        var projectedY = targetPosition.Y + targetSize.Y;
+        var globalSize = (int)NodeGraph.GetViewportRect().Size.Y;
+        if (projectedY > globalSize) targetPosition = targetPosition with { Y = globalSize - targetSize.Y };
+        
+        RightClickPopupMenu.Popup(new Rect2I(targetPosition, targetSize));
     }
 
     private void RightClickMenu()
     {
-        if (!RightClickRoot.Visible)
+        if (!RightClickPopupMenu.Visible)
         {
-            RightClickRoot.Visible = true;
-            RightClickRoot.GlobalPosition = RightClickRoot.GetGlobalMousePosition() - Vector2.One * 4;
+            ShowRightClickPopup();
 
-            CreateRightClickMenuButtonComment();
+            AddPopupMenuCommentButton(RightClickPopupMenu);
+
+            AddPopupMenuNodeButton(RightClickPopupMenu, "Update", typeof(Update));
+            AddPopupMenuNodeButton(RightClickPopupMenu, "Local Update", typeof(LocalUpdate));
+            AddPopupMenuNodeButton(RightClickPopupMenu, "Dynamic Receiver", typeof(DynamicImpulseReceiver));
+            AddPopupMenuNodeButton(RightClickPopupMenu, "Call", typeof(CallInput));
+            AddPopupMenuNodeButton(RightClickPopupMenu, "Async Call", typeof(AsyncCallInput));
+
+            var events = AddPopupMenuSubmenu(RightClickPopupMenu, "Events");
             
-            CreateRightClickMenuButton("Update", typeof(Update));
-            CreateRightClickMenuButton("LocalUpdate", typeof(LocalUpdate));
-            CreateRightClickMenuButton("Dynamic Receiver", typeof(DynamicImpulseReceiver));
-            CreateRightClickMenuButton("Call", typeof(CallInput));
-            CreateRightClickMenuButton("Async Call", typeof(AsyncCallInput));
-            
-            var vBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            RightClickItemRoot.AddChild(vBox);
-
-            var operationButton = CreateRightClickMenuButton("Events", vBox);
-            var hBox = new HBoxContainer();
-            vBox.AddChild(hBox);
-
-            hBox.Visible = false;
-
-            operationButton.Pressed += () =>
-            {
-                hBox.Visible = !hBox.Visible;
-            };
-            
-            var mainButtonContainer = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            hBox.AddChild(mainButtonContainer);
-
-            CreateRightClickMenuButton("OnActivated", typeof(OnActivated), mainButtonContainer);
-            CreateRightClickMenuButton("OnDeactivated", typeof(OnDeactivated), mainButtonContainer);
-            CreateRightClickMenuButton("OnDestroy", typeof(OnDestroy), mainButtonContainer);
-            CreateRightClickMenuButton("OnDestroying", typeof(OnDestroying), mainButtonContainer);
-            CreateRightClickMenuButton("OnDuplicate", typeof(OnDuplicate), mainButtonContainer);
-            CreateRightClickMenuButton("OnLoaded", typeof(OnLoaded), mainButtonContainer);
-            CreateRightClickMenuButton("OnPaste", typeof(OnPaste), mainButtonContainer);
-            CreateRightClickMenuButton("OnSaving", typeof(OnSaving), mainButtonContainer);
-            CreateRightClickMenuButton("OnStart", typeof(OnStart), mainButtonContainer);
-        }
-    }
-
-    private void HideRightClickMenu()
-    {
-        if (!RightClickRoot.Visible) return;
-        RightClickRoot.Visible = false;
-        foreach (var c in RightClickItemRoot.GetChildren().ToList())
-        {
-            RightClickItemRoot.RemoveChild(c);
-            c.QueueFree();
+            AddPopupMenuNodeButton(events, "On Activated", typeof(OnActivated));
+            AddPopupMenuNodeButton(events, "On Dectivated", typeof(OnDeactivated));
+            AddPopupMenuNodeButton(events, "On Destroy", typeof(OnDestroy));
+            AddPopupMenuNodeButton(events, "On Destroying", typeof(OnDestroying));
+            AddPopupMenuNodeButton(events, "On Duplicate", typeof(OnDuplicate));
+            AddPopupMenuNodeButton(events, "On Loaded", typeof(OnLoaded));
+            AddPopupMenuNodeButton(events, "On Paste", typeof(OnPaste));
+            AddPopupMenuNodeButton(events, "On Saving", typeof(OnSaving));
+            AddPopupMenuNodeButton(events, "On Start", typeof(OnStart));
         }
     }
 
@@ -239,30 +244,47 @@ public partial class EditorRoot : Node
         _lastFromPort = fromport;
         _lastIsOutput = isoutput;
     }
-    
-    private Button CreateRightClickMenuButton(string name, Control parent = null)
+    private PopupMenu AddPopupMenuSubmenu(PopupMenu menu, string name)
     {
-        var button = new Button();
-        button.Text = name;
-        (parent ?? RightClickItemRoot).AddChild(button);
-        button.MouseFilter = Control.MouseFilterEnum.Pass; //this fixes a crash,???
-        return button;
+        var submenu = new PopupMenu();
+        submenu.IdPressed += RightClickPopupMenuOnIdPressed;
+        menu.AddChild(submenu);
+        submenu.Name = name;
+        menu.AddSubmenuItem(name, name);
+        return submenu;
     }
-
-    private Button CreateRightClickMenuButton(string name, Type nodeType, Control parent = null)
+    private int AddPopupMenuCommentButton(PopupMenu menu)
     {
-        var mousePos = (NodeGraph.GetLocalMousePosition() + NodeGraph.ScrollOffset) / NodeGraph.Zoom;
+        var mousePos = _lastRightClickPosition;
         
-        var button = CreateRightClickMenuButton(name, parent);
+        var index = menu.ItemCount;
+        menu.AddItem("Add Comment");
+        menu.SetItemMetadata(index, new ActionMetadata(ButtonAction));
 
-        button.Pressed += ButtonAction;
-        
-        return button;
+        return index;
         
         void ButtonAction()
         {
-            HideRightClickMenu();
+            var relay = CreateComment();
             
+            var nodePos = mousePos;
+            if (NodeGraph.SnappingEnabled) nodePos = nodePos.Snapped(Vector2.One * NodeGraph.SnappingDistance);
+            relay.PositionOffset = nodePos;
+        }
+    }
+
+    private int AddPopupMenuNodeButton(PopupMenu menu, string name, Type nodeType)
+    {
+        var mousePos = _lastRightClickPosition;
+        
+        var index = menu.ItemCount;
+        menu.AddItem(name);
+        menu.SetItemMetadata(index, new ActionMetadata(ButtonAction));
+
+        return index;
+        
+        void ButtonAction()
+        {
             var relay = ProtofluxNode.CreateNode(nodeType);
             
             NodeGraph.AddChild(relay);
@@ -272,46 +294,21 @@ public partial class EditorRoot : Node
             relay.PositionOffset = nodePos;
         }
     }
-
-    private Button CreateRightClickMenuButtonComment()
+    private int AddPopupMenuConnectButton(PopupMenu menu, string name, Type nodeType, int isOutIndex = 0, int isInIndex = 0)
     {
-        var mousePos = (NodeGraph.GetLocalMousePosition() + NodeGraph.ScrollOffset) / NodeGraph.Zoom;
-        
-        var button = CreateRightClickMenuButton("Add Comment");
-
-        button.Pressed += ButtonAction;
-        
-        return button;
-        
-        void ButtonAction()
-        {
-            HideRightClickMenu();
-            
-            var relay = CreateComment();
-            
-            var nodePos = mousePos;
-            if (NodeGraph.SnappingEnabled) nodePos = nodePos.Snapped(Vector2.One * NodeGraph.SnappingDistance);
-            relay.PositionOffset = nodePos;
-        }
-    }
-    
-    private Button CreateRightClickConnectMenuButton(string name, Type nodeType, int isOutIndex = 0, int isInIndex = 0, Control parent = null)
-    {
-        var mousePos = (NodeGraph.GetLocalMousePosition() + NodeGraph.ScrollOffset) / NodeGraph.Zoom;
+        var mousePos = _lastRightClickPosition;
         var lastFromNode = _lastFromNode;
         var lastFromPort = (int)_lastFromPort;
         var lastIsOutput = _lastIsOutput;
 
-        var button = CreateRightClickMenuButton(name, parent);
+        var index = menu.ItemCount;
+        menu.AddItem(name);
+        menu.SetItemMetadata(index, new ActionMetadata(ButtonAction));
 
-        button.Pressed += ButtonAction;
-        
-        return button;
+        return index;
         
         void ButtonAction()
         {
-            HideRightClickMenu();
-            
             var relay = ProtofluxNode.CreateNode(nodeType);
             
             NodeGraph.AddChild(relay);
@@ -337,8 +334,7 @@ public partial class EditorRoot : Node
         
         if (type == TypeMap.ReferenceType) return;
 
-        RightClickRoot.Visible = true;
-        RightClickRoot.GlobalPosition = RightClickRoot.GetGlobalMousePosition() - Vector2.One * 4;
+        ShowRightClickPopup();
         
         if (TypeMap.NotStandardType.Contains(type))
         {
@@ -353,51 +349,34 @@ public partial class EditorRoot : Node
 
     private void HandleRightClickMenuOperationImpulse(int type)
     {
-        var mousePos = (NodeGraph.GetLocalMousePosition() + NodeGraph.ScrollOffset) / NodeGraph.Zoom;
-        var lastFromNode = _lastFromNode;
-        var lastFromPort = (int)_lastFromPort;
         var lastIsOutput = _lastIsOutput;
-        
         var sync = TypeMap.AllSyncImpulseRelatedTypes.Contains(type);
         
-        var impulseRelayType = sync ? typeof(CallRelay) : typeof(AsyncCallRelay);
-        CreateRightClickConnectMenuButton("Relay", impulseRelayType);
+        AddPopupMenuConnectButton(RightClickPopupMenu, "Relay", sync ? typeof(CallRelay) : typeof(AsyncCallRelay));
 
         if (lastIsOutput)
         {
-            CreateRightClickConnectMenuButton("If", typeof(If));
-            
-            var forType = sync ? typeof(For) : typeof(AsyncFor);
-            CreateRightClickConnectMenuButton("For", forType);
-            
-            var whileType = sync ? typeof(While) : typeof(AsyncWhile);
-            CreateRightClickConnectMenuButton("While", whileType);
-            
-            var rangeLoopType = sync ? typeof(RangeLoopInt) : typeof(AsyncRangeLoopInt);
-            CreateRightClickConnectMenuButton("Range Loop", rangeLoopType);
-            
-            var sequenceType = sync ? typeof(Sequence) : typeof(AsyncSequence);
-            CreateRightClickConnectMenuButton("Sequence", sequenceType);
-            
-            CreateRightClickConnectMenuButton("Multiplex", typeof(ImpulseMultiplexer));
-            CreateRightClickConnectMenuButton("Random", typeof(PulseRandom));
-            
-            CreateRightClickConnectMenuButton("Once Per Frame", typeof(OnePerFrame));
-            
-            CreateRightClickConnectMenuButton("Start Async", typeof(StartAsyncTask));
+            AddPopupMenuConnectButton(RightClickPopupMenu, "If", typeof(If));
+            AddPopupMenuConnectButton(RightClickPopupMenu, "For", sync ? typeof(For) : typeof(AsyncFor));
+            AddPopupMenuConnectButton(RightClickPopupMenu, "While", sync ? typeof(While) : typeof(AsyncWhile));
+            AddPopupMenuConnectButton(RightClickPopupMenu, "Range Loop", sync ? typeof(RangeLoopInt) : typeof(AsyncRangeLoopInt));
+            AddPopupMenuConnectButton(RightClickPopupMenu, "Sequence", sync ? typeof(Sequence) : typeof(AsyncSequence));
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Multiplex", typeof(ImpulseMultiplexer));
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Random", typeof(PulseRandom));
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Once Per Frame", typeof(OnePerFrame));
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Start Async", typeof(StartAsyncTask));
 
             if (!sync)
             {
-                CreateRightClickConnectMenuButton("Delay Seconds", typeof(DelaySecondsFloat));
-                CreateRightClickConnectMenuButton("Delay Updates", typeof(DelayUpdates));
-                CreateRightClickConnectMenuButton("Delay Updates or Seconds", typeof(DelayUpdatesOrSecondsFloat));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Delay Seconds", typeof(DelaySecondsFloat));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Delay Updates", typeof(DelayUpdates));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Delay Updates or Seconds", typeof(DelayUpdatesOrSecondsFloat));
             }
         }
         else
         {
-            CreateRightClickConnectMenuButton("Demultiplex", typeof(ImpulseDemultiplexer));
-            var callInputType = sync ? typeof(CallInput) : typeof(AsyncCallInput);
-            CreateRightClickConnectMenuButton("Call Input", callInputType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Demultiplex", typeof(ImpulseDemultiplexer));
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Call", sync ? typeof(CallInput) : typeof(AsyncCallInput));
         }
     }
 
@@ -408,24 +387,19 @@ public partial class EditorRoot : Node
 
     private void HandleRightClickMenuTypeTyped<T>()
     {
-        var mousePos = (NodeGraph.GetLocalMousePosition() + NodeGraph.ScrollOffset) / NodeGraph.Zoom;
-        var lastFromNode = _lastFromNode;
-        var lastFromPort = (int)_lastFromPort;
         var lastIsOutput = _lastIsOutput;
         var realType = typeof(T);
 
         var unmanaged = realType.IsUnmanaged();
-        var relayBaseType = unmanaged ? typeof(ValueRelay<>) : typeof(ObjectRelay<>);
-        var relayType = relayBaseType.MakeGenericType(realType);
-
-        CreateRightClickConnectMenuButton("Relay", relayType);
+        
+        AddPopupMenuConnectButton(RightClickPopupMenu,"Relay", (unmanaged ? typeof(ValueRelay<>) : typeof(ObjectRelay<>)).MakeGenericType(realType));
 
         if (lastIsOutput)
         {
             var writeType = (unmanaged ? typeof(ValueWrite<>) : typeof(ObjectWrite<>)).MakeGenericType(realType);
-            CreateRightClickConnectMenuButton("Write", writeType, 1);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Write", writeType, 1);
             var dynamicWriteType = (unmanaged ? typeof(WriteDynamicValueVariable<>) : typeof(WriteDynamicObjectVariable<>)).MakeGenericType(realType);
-            CreateRightClickConnectMenuButton("Dynamic Write", dynamicWriteType, 3);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Dynamic Write", dynamicWriteType, 3);
 
             Type driveType;
             if (unmanaged) 
@@ -434,31 +408,31 @@ public partial class EditorRoot : Node
                 driveType = typeof(ReferenceDrive<>).MakeGenericType(realType);
             else
                 driveType = typeof(ObjectFieldDrive<T>);
-            CreateRightClickConnectMenuButton("Drive", driveType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Drive", driveType);
             
             var equalsType = (unmanaged ? typeof(ValueEquals<>) : typeof(ObjectEquals<>)).MakeGenericType(realType);
-            CreateRightClickConnectMenuButton("==", equalsType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"==", equalsType);
             var notEqualsType = (unmanaged ? typeof(ValueNotEquals<>) : typeof(ObjectNotEquals<>)).MakeGenericType(realType);
-            CreateRightClickConnectMenuButton("!=", notEqualsType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"!=", notEqualsType);
 
             if (!unmanaged)
             {
-                CreateRightClickConnectMenuButton("Is Null", typeof(IsNull<>).MakeGenericType(realType));
-                CreateRightClickConnectMenuButton("Not Null", typeof(NotNull<>).MakeGenericType(realType));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Is Null", typeof(IsNull<>).MakeGenericType(realType));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Not Null", typeof(NotNull<>).MakeGenericType(realType));
             }
             
             if (realType == typeof(bool))
             {
-                CreateRightClickConnectMenuButton("Fire On True", typeof(FireOnTrue), 1);
-                CreateRightClickConnectMenuButton("Fire On False", typeof(FireOnTrue), 1);
-                CreateRightClickConnectMenuButton("Fire While True", typeof(FireWhileTrue));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Fire On True", typeof(FireOnTrue), 1);
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Fire On False", typeof(FireOnTrue), 1);
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Fire While True", typeof(FireWhileTrue));
                 
-                CreateRightClickConnectMenuButton("Local Fire On True", typeof(FireOnLocalTrue));
-                CreateRightClickConnectMenuButton("Local Fire On False", typeof(FireOnLocalTrue));
-                CreateRightClickConnectMenuButton("Local Fire While True", typeof(LocalFireWhileTrue));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Local Fire On True", typeof(FireOnLocalTrue));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Local Fire On False", typeof(FireOnLocalTrue));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Local Fire While True", typeof(LocalFireWhileTrue));
             }
             
-            FakeCoderRightClickButton<T>("Unpack");
+            FakeCoderRightClickButton<T>(RightClickPopupMenu, "Unpack");
         }
         else
         {
@@ -475,18 +449,18 @@ public partial class EditorRoot : Node
             else
                 dataModelStoreType = typeof(DataModelObjectFieldStore<>).MakeGenericType(realType);
 
-            CreateRightClickConnectMenuButton("Data Model Store", dataModelStoreType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Data Model Store", dataModelStoreType);
             
             var storeType = (unmanaged ? typeof(StoredValue<>) : typeof(StoredObject<>)).MakeGenericType(realType);
-            CreateRightClickConnectMenuButton("Store", storeType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Store", storeType);
             
             var localType = (unmanaged ? typeof(LocalValue<>) : typeof(LocalObject<>)).MakeGenericType(realType);
-            CreateRightClickConnectMenuButton("Local", localType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Local", localType);
 
             if (ValueEdit.SupportedDedicatedEditors.Contains(realType) || realType.IsEnum)
             {
                 var inputType = (unmanaged ? typeof(FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.ValueInput<>) : typeof(ValueObjectInput<>)).MakeGenericType(realType);
-                CreateRightClickConnectMenuButton("Input", inputType);
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Input", inputType);
             }
 
             Type sourceType = null;
@@ -503,103 +477,66 @@ public partial class EditorRoot : Node
             else if (realType.GetInterfaces().Contains(typeof(IWorldElement)))
                 sourceType = typeof(ElementSource<>).MakeGenericType(realType);
             if (sourceType is not null) 
-                CreateRightClickConnectMenuButton("Source", sourceType);
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Source", sourceType);
 
             if (realType.GetInterfaces().Contains(typeof(IWorldElement))) 
-                CreateRightClickConnectMenuButton("RefSource", typeof(ReferenceSource<>).MakeGenericType(realType));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"RefSource", typeof(ReferenceSource<>).MakeGenericType(realType));
             
             var dynamicInputType = (unmanaged ? typeof(DynamicVariableValueInput<>) : typeof(DynamicVariableObjectInput<>)).MakeGenericType(realType);
-            CreateRightClickConnectMenuButton("Dynamic Input", dynamicInputType);
+            AddPopupMenuConnectButton(RightClickPopupMenu,"Dynamic Input", dynamicInputType);
             
-            FakeCoderRightClickButton<T>("Pack");
+            FakeCoderRightClickButton<T>(RightClickPopupMenu, "Pack");
         }
         
         if (realType.IsEnum)
         {
-            var vBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            RightClickItemRoot.AddChild(vBox);
-
-            var operationButton = CreateRightClickMenuButton("Operations", vBox);
-            var hBox = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            vBox.AddChild(hBox);
-
-            hBox.Visible = false;
-
-            operationButton.Pressed += () =>
-            {
-                hBox.Visible = !hBox.Visible;
-            };
+            var operations = AddPopupMenuSubmenu(RightClickPopupMenu, "Operations");
             
-            var mainButtonContainer = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            hBox.AddChild(mainButtonContainer);
-
-            var operators = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            var conversion = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            
-            mainButtonContainer.AddChild(operators);
-            mainButtonContainer.AddChild(conversion);
-            
-            CreateRightClickConnectMenuButton("Next Value", typeof(NextValue<>).MakeGenericType(realType), parent: operators);
-            CreateRightClickConnectMenuButton("Previous Value", typeof(PreviousValue<>).MakeGenericType(realType), parent: operators);
-            CreateRightClickConnectMenuButton("Shift Enum", typeof(ShiftEnum<>).MakeGenericType(realType), parent: operators);
+            AddPopupMenuConnectButton(operations, "Next Value", typeof(NextValue<>).MakeGenericType(realType));
+            AddPopupMenuConnectButton(operations, "Previous Value", typeof(PreviousValue<>).MakeGenericType(realType));
+            AddPopupMenuConnectButton(operations, "Shift Enum", typeof(ShiftEnum<>).MakeGenericType(realType));
 
             var underlying = Enum.GetUnderlyingType(realType);
             
             if (lastIsOutput)
             {
                 if (underlying == typeof(byte))
-                    CreateRightClickConnectMenuButton("To Byte", typeof(EnumToByte<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To Byte", typeof(EnumToByte<>).MakeGenericType(realType));
                 else if (underlying == typeof(int))
-                    CreateRightClickConnectMenuButton("To Int", typeof(EnumToInt<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To Int", typeof(EnumToInt<>).MakeGenericType(realType));
                 else if (underlying == typeof(long))
-                    CreateRightClickConnectMenuButton("To Long", typeof(EnumToLong<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To Long", typeof(EnumToLong<>).MakeGenericType(realType));
                 else if (underlying == typeof(short))
-                    CreateRightClickConnectMenuButton("To Short", typeof(EnumToShort<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To Short", typeof(EnumToShort<>).MakeGenericType(realType));
                 
                 else if (underlying == typeof(sbyte))
-                    CreateRightClickConnectMenuButton("To SByte", typeof(EnumToSbyte<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To SByte", typeof(EnumToSbyte<>).MakeGenericType(realType));
                 else if (underlying == typeof(uint))
-                    CreateRightClickConnectMenuButton("To UInt", typeof(EnumToUint<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To UInt", typeof(EnumToUint<>).MakeGenericType(realType));
                 else if (underlying == typeof(ulong))
-                    CreateRightClickConnectMenuButton("To ULong", typeof(EnumToUlong<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To ULong", typeof(EnumToUlong<>).MakeGenericType(realType));
                 else if (underlying == typeof(ushort))
-                    CreateRightClickConnectMenuButton("To UShort", typeof(EnumToUshort<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"To UShort", typeof(EnumToUshort<>).MakeGenericType(realType));
             }
             else
             {
                 if (underlying == typeof(byte))
-                    CreateRightClickConnectMenuButton("From Byte", typeof(ByteToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From Byte", typeof(ByteToEnum<>).MakeGenericType(realType));
                 else if (underlying == typeof(int))
-                    CreateRightClickConnectMenuButton("From Int", typeof(IntToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From Int", typeof(IntToEnum<>).MakeGenericType(realType));
                 else if (underlying == typeof(long))
-                    CreateRightClickConnectMenuButton("From Long", typeof(LongToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From Long", typeof(LongToEnum<>).MakeGenericType(realType));
                 else if (underlying == typeof(short))
-                    CreateRightClickConnectMenuButton("From Short", typeof(ShortToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From Short", typeof(ShortToEnum<>).MakeGenericType(realType));
                 
                 else if (underlying == typeof(sbyte))
-                    CreateRightClickConnectMenuButton("From SByte", typeof(SbyteToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From SByte", typeof(SbyteToEnum<>).MakeGenericType(realType));
                 else if (underlying == typeof(uint))
-                    CreateRightClickConnectMenuButton("From UInt", typeof(UintToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From UInt", typeof(UintToEnum<>).MakeGenericType(realType));
                 else if (underlying == typeof(ulong))
-                    CreateRightClickConnectMenuButton("From ULong", typeof(UlongToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From ULong", typeof(UlongToEnum<>).MakeGenericType(realType));
                 else if (underlying == typeof(ushort))
-                    CreateRightClickConnectMenuButton("From UShort", typeof(UshortToEnum<>).MakeGenericType(realType),
-                        parent: conversion);
+                    AddPopupMenuConnectButton(operations,"From UShort", typeof(UshortToEnum<>).MakeGenericType(realType));
             }
         }
 
@@ -623,87 +560,67 @@ public partial class EditorRoot : Node
                 FakeCoder<T>.SupportsBooleanShifting ||
                 FakeCoder<T>.SupportsBooleanRotation))
         {
-            var vBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            RightClickItemRoot.AddChild(vBox);
-
-            var operationButton = CreateRightClickMenuButton("Operations", vBox);
-            var hBox = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            vBox.AddChild(hBox);
-
-            hBox.Visible = false;
-
-            operationButton.Pressed += () =>
-            {
-                hBox.Visible = !hBox.Visible;
-            };
-            
-            var mainButtonContainer = new HBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            hBox.AddChild(mainButtonContainer);
-
-            var operators = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            var math = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            var boolean = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-            
-            mainButtonContainer.AddChild(operators);
-            mainButtonContainer.AddChild(math);
-            mainButtonContainer.AddChild(boolean);
+            var operations = AddPopupMenuSubmenu(RightClickPopupMenu, "Operations");
+            var operators = AddPopupMenuSubmenu(operations, "Operators");
+            var math = AddPopupMenuSubmenu(operations, "Math");
+            var interpolation = AddPopupMenuSubmenu(operations, "Interpolation");
             
             if (Coder<T>.SupportsAddSub)
             {
-                CreateRightClickConnectMenuButton("+", typeof(ValueAdd<>).MakeGenericType(realType), parent: operators);
-                CreateRightClickConnectMenuButton("-", typeof(ValueSub<>).MakeGenericType(realType), parent: operators);
+                AddPopupMenuConnectButton(operators, "+", typeof(ValueAdd<>).MakeGenericType(realType));
+                AddPopupMenuConnectButton(operators,"-", typeof(ValueSub<>).MakeGenericType(realType));
             }
             if (Coder<T>.SupportsMul)
-                CreateRightClickConnectMenuButton("*", typeof(ValueMul<>).MakeGenericType(realType), parent: operators);
+                AddPopupMenuConnectButton(operators,"*", typeof(ValueMul<>).MakeGenericType(realType));
             if (Coder<T>.SupportsDiv) 
-                CreateRightClickConnectMenuButton("/", typeof(ValueDiv<>).MakeGenericType(realType), parent: operators);
+                AddPopupMenuConnectButton(operators,"/", typeof(ValueDiv<>).MakeGenericType(realType));
             if (Coder<T>.SupportsMod) 
-                CreateRightClickConnectMenuButton("%", typeof(ValueMod<>).MakeGenericType(realType), parent: operators);
+                AddPopupMenuConnectButton(operators,"%", typeof(ValueMod<>).MakeGenericType(realType));
 
             if (lastIsOutput)
             {
-                FakeCoderRightClickButton<T>("GreaterThan", ">", parent: operators);
-                FakeCoderRightClickButton<T>("GreaterOrEqual", "\u2265", parent: operators);
-                FakeCoderRightClickButton<T>("LessThan", "<", parent: operators);
-                FakeCoderRightClickButton<T>("LessOrEqual", "\u2264", parent: operators);
+                FakeCoderRightClickButton<T>(operators, "GreaterThan", ">");
+                FakeCoderRightClickButton<T>(operators, "GreaterOrEqual", "\u2265");
+                FakeCoderRightClickButton<T>(operators, "LessThan", "<");
+                FakeCoderRightClickButton<T>(operators, "LessOrEqual", "\u2264");
             }
             
             if (Coder<T>.SupportsAbs) 
-                CreateRightClickConnectMenuButton("Abs", typeof(ValueAbs<>).MakeGenericType(realType), parent: math);
+                AddPopupMenuConnectButton(math,"Abs", typeof(ValueAbs<>).MakeGenericType(realType));
             if (Coder<T>.SupportsMinMax)
             {
-                CreateRightClickConnectMenuButton("Min", typeof(ValueMin<>).MakeGenericType(realType), parent: math);
-                CreateRightClickConnectMenuButton("Max", typeof(ValueMax<>).MakeGenericType(realType), parent: math);
+                AddPopupMenuConnectButton(math,"Min", typeof(ValueMin<>).MakeGenericType(realType));
+                AddPopupMenuConnectButton(math,"Max", typeof(ValueMax<>).MakeGenericType(realType));
             }
             if (Coder<T>.SupportsLerp) 
-                CreateRightClickConnectMenuButton("Lerp", typeof(ValueLerp<>).MakeGenericType(realType), parent: math);
+                AddPopupMenuConnectButton(interpolation,"Lerp", typeof(ValueLerp<>).MakeGenericType(realType));
             if (Coder<T>.SupportsInverseLerp) 
-                CreateRightClickConnectMenuButton("Inverse Lerp", typeof(ValueInverseLerp<>).MakeGenericType(realType), parent: math);
+                AddPopupMenuConnectButton(interpolation,"Inverse Lerp", typeof(ValueInverseLerp<>).MakeGenericType(realType));
             if (Coder<T>.SupportsConstantLerp) 
-                CreateRightClickConnectMenuButton("Constant Lerp", typeof(ValueConstantLerp<>).MakeGenericType(realType), parent: math);
+                AddPopupMenuConnectButton(interpolation,"Constant Lerp", typeof(ValueConstantLerp<>).MakeGenericType(realType));
             if (Coder<T>.SupportsSmoothLerp) 
-                CreateRightClickConnectMenuButton("Smooth Lerp", typeof(ValueSmoothLerp<>).MakeGenericType(realType), parent: math);
+                AddPopupMenuConnectButton(interpolation,"Smooth Lerp", typeof(ValueSmoothLerp<>).MakeGenericType(realType));
             if (Coder<T>.SupportsRepeat) 
-                CreateRightClickConnectMenuButton("Repeat", typeof(ValueRepeat<>).MakeGenericType(realType), parent: math);
+                AddPopupMenuConnectButton(interpolation,"Repeat", typeof(ValueRepeat<>).MakeGenericType(realType));
             
-            FakeCoderRightClickButton<T>("AND", "&", parent: operators);
-            FakeCoderRightClickButton<T>("OR", "|", parent: operators);
-            FakeCoderRightClickButton<T>("NOT", "!", parent: operators);
-            FakeCoderRightClickButton<T>("NAND", parent: operators);
-            FakeCoderRightClickButton<T>("NOR", parent: operators);
-            FakeCoderRightClickButton<T>("XOR", parent: operators);
-            FakeCoderRightClickButton<T>("XNOR", parent: operators);
+            FakeCoderRightClickButton<T>(operators,"AND", "&");
+            FakeCoderRightClickButton<T>(operators,"OR", "|");
+            FakeCoderRightClickButton<T>(operators,"NOT", "!");
+            FakeCoderRightClickButton<T>(operators,"NAND");
+            FakeCoderRightClickButton<T>(operators,"NOR");
+            FakeCoderRightClickButton<T>(operators,"XOR");
+            FakeCoderRightClickButton<T>(operators,"XNOR");
             
-            FakeCoderRightClickButton<T>("ShiftLeft", "<<", parent: operators);
-            FakeCoderRightClickButton<T>("ShiftRight", ">>", parent: operators);
-            FakeCoderRightClickButton<T>("RotateLeft", "\u21ba", parent: operators);
-            FakeCoderRightClickButton<T>("RotateRight", "\u21bb", parent: operators);
+            FakeCoderRightClickButton<T>(operators,"ShiftLeft", "<<");
+            FakeCoderRightClickButton<T>(operators,"ShiftRight", ">>");
+            FakeCoderRightClickButton<T>(operators,"RotateLeft", "\u21ba");
+            FakeCoderRightClickButton<T>(operators,"RotateRight", "\u21bb");
         }
     }
 
-    private void FakeCoderRightClickButton<T>(string nodeName, string displayName = null, int isOutIndex = 0, int isInIndex = 0, Control parent = null)
+    private void FakeCoderRightClickButton<T>(PopupMenu menu, string nodeName, string displayName = null, int isOutIndex = 0, int isInIndex = 0)
     {
-        if (FakeCoder<T>.Supports(nodeName, out var nodeType)) CreateRightClickConnectMenuButton(displayName ?? nodeName, nodeType, isOutIndex, isInIndex, parent);
+        if (FakeCoder<T>.Supports(nodeName, out var nodeType)) AddPopupMenuConnectButton(menu, displayName ?? nodeName, nodeType, isOutIndex, isInIndex);
     }
     private void NodeBrowserSearchBarOnTextChanged(string newtext)
     {
