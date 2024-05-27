@@ -6,6 +6,8 @@ A desktop-based script compiler for Resonite
 
 ### Compiling the Editor
 
+The editor requires compiling, and built binaries are not provided, as it uses Resonite as a dependency
+
 1. Download Godot 4.2 .NET for your target platform, and it's dependencies, such as the .NET 6 SDK
 
     Note that this is specifically 4.2 .NET, not 4.2.2 or 4.3, or the non-.NET versions. I will likely update to 4.3 later.
@@ -15,6 +17,10 @@ A desktop-based script compiler for Resonite
 3. Click import and browse to the location of the editor project
 4. Click on the editor in the Project Manager to open the Godot Editor 
 5. Click the hammer icon in the top right to build, and the play button to run the script editor
+
+### Installing the Mod
+
+Built binaries for the mod are provided in the Releases tab, or you can manually compile it.
 
 ### Compiling the Mod
 
