@@ -7,11 +7,11 @@ A desktop-based script compiler for Resonite
 ### Compiling the Editor
 
 The editor requires compiling, and built binaries are not provided, as it uses Resonite as a dependency
-1. Download .NET SDK 8 for your target platform. You can find the download link here: https://dotnet.microsoft.com/download/dotnet/8
-    - Note, this is for windows, refer to your linux distrobution for instructions on how to get dotnet8
+1. Download .NET SDK 8 for your target platform. You can find the download link here: https://dotnet.microsoft.com/download/dotnet/8.0
 2. Download Godot 4.2 .NET for your target platform. 
     - Note that this is specifically Godot 4.2 .NET, newer versions are unsupported as of this time
-    - [Download From Github](https://github.com/godotengine/godot/releases/download/4.2-stable/Godot_v4.2-stable_mono_win64.zip)
+    - [Download From Github (Windows)](https://github.com/godotengine/godot/releases/download/4.2-stable/Godot_v4.2-stable_mono_win64.zip)
+    - [Download From Github (Linux)](https://github.com/godotengine/godot/releases/download/4.2-stable/Godot_v4.2-stable_mono_linux_x86_64.zip)
 
 3. Run the Godot executable to open the Project Manager.
 4. Click import and browse to the location of the editor project.
