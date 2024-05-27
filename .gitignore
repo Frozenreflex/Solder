@@ -1,4 +1,6 @@
 .idea/
+.vscode
 */.idea/
 */bin/
+*/build/
 */obj/

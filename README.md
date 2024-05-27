@@ -7,16 +7,16 @@ A desktop-based script compiler for Resonite
 ### Compiling the Editor
 
 The editor requires compiling, and built binaries are not provided, as it uses Resonite as a dependency
+1. Download .NET SDK 8 for your target platform. You can find the download link here: https://dotnet.microsoft.com/download/dotnet/8
+    - Note, this is for windows, refer to your linux distrobution for instructions on how to get dotnet8
+2. Download Godot 4.2 .NET for your target platform. 
+    - Note that this is specifically Godot 4.2 .NET, newer versions are unsupported as of this time
+    - [Download From Github](https://github.com/godotengine/godot/releases/download/4.2-stable/Godot_v4.2-stable_mono_win64.zip)
 
-1. Download Godot 4.2 .NET for your target platform, and it's dependencies, such as the .NET 6 SDK
-
-    Note that this is specifically 4.2 .NET, not 4.2.2 or 4.3, or the non-.NET versions. I will likely update to 4.3 later.
-
-   https://godotengine.org/download/archive/4.2-stable/
-2. Run the Godot executable to open the Project Manager
-3. Click import and browse to the location of the editor project
-4. Click on the editor in the Project Manager to open the Godot Editor 
-5. Click the hammer icon in the top right to build, and the play button to run the script editor
+3. Run the Godot executable to open the Project Manager.
+4. Click import and browse to the location of the editor project.
+5. Click on the editor in the Project Manager to open the Godot Editor.
+6. Click the hammer icon in the top right to build, and the play button to run the script editor.
 
 ### Installing the Mod
 
@@ -24,10 +24,12 @@ Built binaries for the mod are provided in the Releases tab, or you can manually
 
 ### Compiling the Mod
 
-1. Ensure you can compile code for .NET Framework 4.7.2. I don't know how to set this part up for Windows and I don't remember how I did it on Linux.
-2. Install and ensure ResoniteModLoader is set up for compiling mods (https://github.com/resonite-modding-group/ResoniteModLoader)
-3. Run ``dotnet build`` on the mod directory, or use your preferred IDE to build the mod
-4. The mod binary can be found in the resulting ``bin/Debug/net4.7.2`` directory, and can be installed like a normal ResoniteModLoader mod
+1. Install and ensure ResoniteModLoader is set up for compiling mods. You can find the ResoniteModLoader repository [here](https://github.com/resonite-modding-group/ResoniteModLoader).
+2. Run either
+    - `make` which will put the mod in `Solder.Client/build`
+    - `dotnet build` which will put the mod in `bin/Debug/net4.7.2/Solder.Client.dll`
+    - or build with your prefered IDE
+3. You can install the mod like any other mod
 
 ### Notes for Compiling
 
