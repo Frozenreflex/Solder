@@ -12,6 +12,7 @@ using FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes;
 using FrooxEngine.ProtoFlux;
 using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes;
 using ResoniteModLoader;
+using Solder.Client.CompileModes;
 
 namespace Solder.Client;
 
@@ -140,98 +141,14 @@ public class TypeSerialization
 
 public class DeserializeSettings
 {
-    public CompileMode Mode;
+    public BaseCompileMode Mode;
     public bool Monopack = false;
     public bool Persistent = true;
     public Slot ImportRoot;
     public Dictionary<Type, List<string>> ImportNames;
-
-    private static readonly MethodInfo InternalImportReferenceMethod = typeof(DeserializeSettings).GetMethod(nameof(InternalImportReference), BindingFlags.Instance | BindingFlags.NonPublic);
-    private T InternalImportReference<T>(int index) where T : class, IWorldElement
-    {
-        var multiplexer = ImportRoot.GetComponent<ReferenceMultiplexer<T>>();
-        if (multiplexer is null) return null;
-        if (index >= multiplexer.References.Count) return null;
-        return multiplexer.References[index];
-    }
-    public T Import<T>(int index)
-    {
-        switch (Mode)
-        {
-            case CompileMode.Solder:
-            case CompileMode.RedprintPack:
-            {
-                var space = ImportRoot.GetComponent<DynamicVariableSpace>();
-                if (space is null) return default;
-                var nameList = ImportNames[typeof(T)];
-                if (nameList is null) return default;
-                if (index >= nameList.Count) return default;
-                var name = nameList[index];
-                var sanitized = DynamicVariableHelper.SanitizeName(name);
-                return space.TryReadValue<T>(sanitized, out var value) ? value : default;
-            }
-            case CompileMode.Barebones:
-            {
-                if (!Coder<T>.IsEnginePrimitive) return (T)InternalImportReferenceMethod.MakeGenericMethod(typeof(T)).Invoke(this, [index]);
-                
-                var multiplexer = ImportRoot.GetComponent<ValueMultiplexer<T>>();
-                if (multiplexer is null) return default;
-                if (index >= multiplexer.Values.Count) return default;
-                return multiplexer.Values.GetElement(index);
-            }
-        }
-        return default;
-    }
-    public Sync<T> ImportValue<T>(int index)
-    {
-        switch (Mode)
-        {
-            case CompileMode.Solder:
-            case CompileMode.RedprintPack:
-            {
-                var nameList = ImportNames[typeof(T)];
-                if (nameList is null) return default;
-                if (index >= nameList.Count) return default;
-                var name = nameList[index];
-                var sanitized = DynamicVariableHelper.SanitizeName(name);
-                var component = ImportRoot.GetComponent<DynamicValueVariable<T>>(i => i.VariableName.Value.EndsWith(sanitized));
-                return component?.Value;
-            }
-            case CompileMode.Barebones:
-            {
-                var multiplexer = ImportRoot.GetComponent<ValueMultiplexer<T>>();
-                if (multiplexer is null) return null;
-                if (index >= multiplexer.Values.Count) return null;
-                return multiplexer.Values.GetElement(index);
-            }
-        }
-        return default;
-    }
-    public SyncRef<T> ImportReference<T>(int index) where T : class, IWorldElement
-    {
-        switch (Mode)
-        {
-            case CompileMode.Solder:
-            case CompileMode.RedprintPack:
-            {
-                var nameList = ImportNames[typeof(T)];
-                if (nameList is null) return default;
-                if (index >= nameList.Count) return default;
-                var name = nameList[index];
-                var sanitized = DynamicVariableHelper.SanitizeName(name);
-                var component = ImportRoot.GetComponent<DynamicReferenceVariable<T>>(i => i.VariableName.Value.EndsWith(sanitized));
-                return component?.Reference;
-            }
-            case CompileMode.Barebones:
-            {
-                var multiplexer = ImportRoot.GetComponent<ReferenceMultiplexer<T>>();
-                if (multiplexer is null) return null;
-                if (index >= multiplexer.References.Count) return null;
-                return multiplexer.References.GetElement(index);
-            }
-        }
-        return default;
-    }
+    public T Import<T>(int index) => Mode.Import<T>(index);
+    public Sync<T> ImportValue<T>(int index) => Mode.ImportValue<T>(index);
+    public SyncRef<T> ImportReference<T>(int index) where T : class, IWorldElement => Mode.ImportReference<T>(index);
 }
 
 public static class ResoniteScriptDeserializer
@@ -637,9 +554,9 @@ public static class ResoniteScriptDeserializer
 
     public static void DeserializeScript(Slot rootSlot, SerializedScript script, DeserializeSettings settings)
     {
-        var monopack = settings.Mode is CompileMode.Barebones or CompileMode.Solder && settings.Monopack; //monopack is only supported in barebones and solder mode
+        var monopack = settings.Mode is (Barebones or Solder.Client.CompileModes.Solder) && settings.Monopack; //monopack is only supported in barebones and solder mode
         //remove any already compiled results, for a clean compile
-        if (settings.Mode is CompileMode.Barebones)
+        if (settings.Mode is Barebones)
         {
             var children = rootSlot.Children.ToList().Where(c => c.Tag == "Compiled").ToList();
             foreach (var c in children) c.Destroy();
