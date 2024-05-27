@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FrooxEngine;
 using FrooxEngine.ProtoFlux;
+using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes;
 using Godot;
 using ProtoFlux.Core;
 using Type = System.Type;
@@ -280,6 +281,21 @@ public partial class ProtofluxNode : GraphNode
                     Type = first,
                     Color = new Color(c.x,c.y,c.z),
                     Value = val,
+                });
+            }
+
+            if (baseType == typeof(AssetInput<>))
+            {
+                var inType = typeof(IAssetProvider<>).MakeGenericType(first);
+                
+                var c = inType.GetTypeColor().rgb;
+                
+                Extra.Add(new ExtraData
+                {
+                    Name = "Value",
+                    Type = inType,
+                    Color = new Color(c.x,c.y,c.z),
+                    Value = "0",
                 });
             }
         }

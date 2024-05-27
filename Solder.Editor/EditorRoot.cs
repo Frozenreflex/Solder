@@ -169,7 +169,6 @@ public partial class EditorRoot : Node
         var copy = NodeGraph.Copy();
         var json = JsonSerializer.Serialize(copy, new JsonSerializerOptions()
         {
-            WriteIndented = true,
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         });
         _copy = json;
@@ -461,25 +460,34 @@ public partial class EditorRoot : Node
                 var inputType = (unmanaged ? typeof(FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.ValueInput<>) : typeof(ValueObjectInput<>)).MakeGenericType(realType);
                 AddPopupMenuConnectButton(RightClickPopupMenu,"Input", inputType);
             }
+            if (realType.GetInterfaces().Contains(typeof(IAssetProvider)))
+            {
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Asset Input", typeof(AssetInput<>).MakeGenericType(realType.GetGenericArguments().First()));
+            }
+            else
+            {
+                Type sourceType = null;
+                if (realType == typeof(SyncRef<Slot>)) 
+                    sourceType = typeof(SlotRefSource);
+                /*
+                else if (realType == typeof(Slot))
+                    sourceType = typeof(SlotSource);
+                    */
+                //the game doesn't actually use slot source? it spawns an elementsource when you ref a slot, ?????
+                else if (realType == typeof(UserRef))
+                    sourceType = typeof(UserRefSource);
+                else if (unmanaged)
+                    sourceType = typeof(ValueSource<>).MakeGenericType(realType);
+                else if (Coder<T>.IsSupported || realType == typeof(Type))
+                    sourceType = typeof(ObjectValueSource<>).MakeGenericType(realType);
+                else if (realType.GetInterfaces().Contains(typeof(IWorldElement)))
+                    sourceType = typeof(ElementSource<>).MakeGenericType(realType);
+                if (sourceType is not null) 
+                    AddPopupMenuConnectButton(RightClickPopupMenu,"Source", sourceType);
 
-            Type sourceType = null;
-            if (realType == typeof(SyncRef<Slot>)) 
-                sourceType = typeof(SlotRefSource);
-            else if (realType == typeof(Slot))
-                sourceType = typeof(SlotSource);
-            else if (realType == typeof(UserRef))
-                sourceType = typeof(UserRefSource);
-            else if (unmanaged)
-                sourceType = typeof(ValueSource<>).MakeGenericType(realType);
-            else if (Coder<T>.IsSupported || realType == typeof(Type))
-                sourceType = typeof(ObjectValueSource<>).MakeGenericType(realType);
-            else if (realType.GetInterfaces().Contains(typeof(IWorldElement)))
-                sourceType = typeof(ElementSource<>).MakeGenericType(realType);
-            if (sourceType is not null) 
-                AddPopupMenuConnectButton(RightClickPopupMenu,"Source", sourceType);
-
-            if (realType.GetInterfaces().Contains(typeof(IWorldElement))) 
-                AddPopupMenuConnectButton(RightClickPopupMenu,"RefSource", typeof(ReferenceSource<>).MakeGenericType(realType));
+                if (realType.GetInterfaces().Contains(typeof(IWorldElement))) 
+                    AddPopupMenuConnectButton(RightClickPopupMenu,"RefSource", typeof(ReferenceSource<>).MakeGenericType(realType));
+            }
             
             var dynamicInputType = (unmanaged ? typeof(DynamicVariableValueInput<>) : typeof(DynamicVariableObjectInput<>)).MakeGenericType(realType);
             AddPopupMenuConnectButton(RightClickPopupMenu,"Dynamic Input", dynamicInputType);

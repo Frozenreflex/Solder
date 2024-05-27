@@ -86,6 +86,7 @@ public class SerializedImportName
 public class SerializedScript
 {
     [JsonInclude] public int Version = 1;
+    [JsonInclude] public bool RearrangeExport = false;
     [JsonInclude] public List<SerializedProtofluxNode> Nodes { get; set; } = new();
     [JsonInclude] public SerializedConnections Connections { get; set; } = new();
     [JsonInclude] public List<SerializedComment> Comments { get; set; } = new();
@@ -198,6 +199,10 @@ public static class GodotScriptSerializer
             c.Text.Text = comment.Message;
             c.PositionOffset = new Vector2(comment.XPosition * 1000, -comment.YPosition * 1000);
         }
+
+        if (script.RearrangeExport) editor.NodeGraph.ArrangeNodes(); 
+        //RearrangeExport is used as a flag, when exporting nodes from resonite they're more than likely not aligned to
+        //Z=0, so we have to rearrange those to create a visible output
     }
     public static SerializedScript Copy(this GraphEdit graph)
     {

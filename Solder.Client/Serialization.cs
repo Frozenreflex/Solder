@@ -8,7 +8,9 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
+using FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes;
 using FrooxEngine.ProtoFlux;
+using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes;
 using ResoniteModLoader;
 
 namespace Solder.Client;
@@ -53,10 +55,10 @@ public class SerializedConnections
 
 public class SerializedGlobalRef
 {
-    [JsonInclude] public string Name { get; private set; }
-    [JsonInclude] public bool Drive { get; private set; }
-    [JsonInclude] public string Value { get; private set; }
-    [JsonInclude] public int Index { get; private set; } = -1;
+    [JsonInclude] public string Name { get; set; }
+    [JsonInclude] public bool Drive { get; set; }
+    [JsonInclude] public string Value { get; set; }
+    [JsonInclude] public int Index { get; set; } = -1;
 }
 
 public class SerializedExtra
@@ -81,6 +83,7 @@ public class SerializedImportName
 public class SerializedScript
 {
     [JsonInclude] public int Version = 1;
+    [JsonInclude] public bool RearrangeExport = false;
     [JsonInclude] public List<SerializedProtofluxNode> Nodes { get; set; } = new();
     [JsonInclude] public SerializedConnections Connections { get; set; } = new();
     [JsonInclude] public List<SerializedComment> Comments { get; set; } = new();
@@ -220,6 +223,9 @@ public static class ResoniteScriptDeserializer
     private static readonly MethodInfo HandleValueInputExtrasMethod =
         typeof(ResoniteScriptDeserializer).GetMethod(nameof(HandleValueInputExtras),
             BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo HandleAssetInputExtrasMethod =
+        typeof(ResoniteScriptDeserializer).GetMethod(nameof(HandleAssetInputExtras),
+            BindingFlags.Static | BindingFlags.NonPublic);
 
     private static readonly MethodInfo HandleValueObjectInputExtrasMethod =
         typeof(ResoniteScriptDeserializer).GetMethod(nameof(HandleValueObjectInputExtras),
@@ -236,6 +242,301 @@ public static class ResoniteScriptDeserializer
     private static readonly MethodInfo HandleReferenceDriveMethod =
         typeof(ResoniteScriptDeserializer).GetMethod(nameof(HandleReferenceDrive),
             BindingFlags.Static | BindingFlags.NonPublic);
+
+    private static int GetGlobalRefIndex(Dictionary<Type, List<object>> dict, Type type, object element)
+    {
+        if (!dict.TryGetValue(type, out var refList))
+        {
+            refList = [];
+            dict.Add(type, refList);
+        }
+        if (!refList.Contains(element)) refList.Add(element);
+        return refList.IndexOf(element);
+    }
+    public static SerializedScript ExportScript(Slot rootSlot)
+    {
+        var script = new SerializedScript();
+        var nodes = rootSlot.Children.SelectMany(i => i.Components.OfType<ProtoFluxNode>()).ToList();
+        var aligned = nodes.All(i => MathX.Approximately(i.Slot.LocalPosition.Z, 0));
+        if (!aligned) script.RearrangeExport = true; //we aren't aligned, rearrange it on import
+        var serializedNodes = nodes.ToDictionary(i => i, i => new SerializedProtofluxNode
+        {
+            Guid = Guid.NewGuid(),
+            X = aligned ? i.Slot.LocalPosition.X : 0,
+            Y = aligned ? i.Slot.LocalPosition.Y : 0,
+            Type = new TypeSerialization(i.GetType()),
+            SerializedPorts = i.NodeImpulseLists.Concat(i.NodeOutputLists).Concat(i.NodeInputLists).Concat(i.NodeOperationLists).Select(j => new SerializedPortInfo()
+            {
+                Count = j.Count,
+                Name = j.Name
+            }).ToList()
+        });
+        script.Nodes = serializedNodes.Select(i => i.Value).ToList();
+        
+        var globalRefs = new Dictionary<Type, List<object>>();
+        
+        var serializedConnections = script.Connections;
+        foreach (var a in serializedNodes)
+        {
+            var node = a.Key;
+            var serialized = a.Value;
+            var guid = serialized.Guid;
+
+            var nodeType = node.GetType();
+
+            if (nodeType.IsGenericType)
+            {
+                try
+                {
+                    var baseType = nodeType.GetGenericTypeDefinition();
+                    var args = nodeType.GetGenericArguments();
+                    if (baseType == typeof(ValueInput<>)) SerializeValueInputExtrasMethod.MakeGenericMethod(args.First()).Invoke(null, [serialized, node]);
+                    if (baseType == typeof(AssetInput<>)) SerializeAssetInputExtrasMethod.MakeGenericMethod(args.First()).Invoke(null, [serialized, node, globalRefs]);
+                    if (baseType == typeof(ValueObjectInput<>)) SerializeValueObjectInputExtrasMethod.MakeGenericMethod(args.First()).Invoke(null, [serialized, node]);
+                    if (baseType == typeof(ValueFieldDrive<>)) SerializeValueFieldDriveExtrasMethod.MakeGenericMethod(args.First()).Invoke(null, [serialized, node, globalRefs]);
+                    if (baseType == typeof(ObjectFieldDrive<>)) SerializeObjectFieldDriveExtrasMethod.MakeGenericMethod(args.First()).Invoke(null, [serialized, node, globalRefs]);
+                    if (baseType == typeof(ReferenceDrive<>)) SerializeReferenceDriveExtrasMethod.MakeGenericMethod(args.First()).Invoke(null, [serialized, node, globalRefs]);
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+            
+            foreach (var globalRef in node.NodeGlobalRefs)
+            {
+                var target = globalRef.Target;
+                if (target is not IGlobalValueProxy globalValueProxy) continue;
+                
+                var type = globalValueProxy.ValueType;
+                if (SupportedDedicatedEditors.Contains(type))
+                {
+                    serialized.GlobalRefs.Add(new SerializedGlobalRef
+                    {
+                        Name = globalRef.Name,
+                        Value = globalValueProxy.BoxedValue.ToString(),
+                    });
+                }
+                else
+                {
+                    serialized.GlobalRefs.Add(new SerializedGlobalRef
+                    {
+                        Name = globalRef.Name,
+                        Value = GetGlobalRefIndex(globalRefs, type, globalValueProxy.BoxedValue).ToString(),
+                    });
+                }
+            }
+
+            foreach (var reference in node.NodeReferences)
+            {
+                var referenceTarget = reference.Target;
+                if (referenceTarget is null) continue;
+                var targetOwner = nodes.FirstOrDefault(i => i == referenceTarget);
+                if (targetOwner is null) continue;
+                
+                serializedConnections.ReferenceConnections.Add(new SerializedConnection
+                {
+                    FromGuid = serializedNodes[targetOwner].Guid,
+                    FromIndex = -1,
+                    FromName = "",
+                    ToGuid = guid,
+                    ToIndex = -1,
+                    ToName = reference.Name,
+                });
+            }
+            
+            foreach (var impulse in node.NodeImpulses)
+            {
+                HandleImpulseOperation(impulse, new SerializedConnection
+                {
+                    FromGuid = guid,
+                    FromIndex = -1,
+                    FromName = impulse.Name,
+                });
+            }
+            foreach (var impulseList in node.NodeImpulseLists)
+            {
+                for (var i = 0; i < impulseList.Count; i++)
+                {
+                    var element = impulseList.GetElement(i);
+                    if (element is not ISyncRef impulse) continue;
+                    HandleImpulseOperation(impulse, new SerializedConnection
+                    {
+                        FromGuid = guid,
+                        FromIndex = i,
+                        FromName = impulseList.Name,
+                    });
+                }
+            }
+
+            foreach (var input in node.NodeInputs)
+            {
+                HandleInputOutput(input, new SerializedConnection
+                {
+                    ToGuid = guid,
+                    ToIndex = -1,
+                    ToName = input.Name,
+                });
+            }
+
+            foreach (var inputList in node.NodeInputLists)
+            {
+                for (var i = 0; i < inputList.Count; i++)
+                {
+                    var element = inputList.GetElement(i);
+                    if (element is not ISyncRef input) continue;
+                    HandleInputOutput(input, new SerializedConnection
+                    {
+                        ToGuid = guid,
+                        ToIndex = i,
+                        ToName = inputList.Name,
+                    });
+                }
+            }
+        }
+
+        foreach (var globalRef in globalRefs)
+        {
+            var names = new List<string>();
+            
+            foreach (var r in globalRef.Value)
+            {
+                if (r is IWorldElement elem)
+                {
+                    var current = elem;
+                    if (current is not Slot or SyncElement)
+                    {
+                        while (current is not Slot or SyncElement)
+                        {
+                            if (current is null) break;
+                            current = current.Parent;
+                        }
+                    }
+                    names.Add(current?.Name ?? "null");
+                }
+                else
+                {
+                    names.Add(r?.ToString() ?? "null");
+                }
+            }
+            script.ImportNames.Add(new SerializedImportName
+            {
+                Type = new TypeSerialization(globalRef.Key),
+                Names = names
+            });
+        }
+
+        return script;
+        
+        void HandleImpulseOperation(ISyncRef impulse, SerializedConnection serial)
+        {
+            var impulseTarget = impulse.Target;
+            if (impulseTarget is null) return;
+            var targetOwner = nodes.FirstOrDefault(i =>
+                i.NodeOperations.Concat(i.NodeOperationLists.SelectMany(j => j.Elements.OfType<INodeOperation>()))
+                    .Any(j => j == impulseTarget));
+            if (targetOwner is null) return;
+            
+            serial.ToGuid = serializedNodes[targetOwner].Guid;
+            
+            var operationListOwner = targetOwner.NodeOperationLists.FirstOrDefault(i => i.Elements.OfType<IWorldElement>().Any(j => j == impulseTarget));
+            if (operationListOwner is null)
+            {
+                serial.ToName = impulseTarget == targetOwner ? "*" : impulseTarget.Name;
+                serial.ToIndex = -1;
+            }
+            else
+            {
+                serial.ToName = operationListOwner.Name;
+                serial.ToIndex = operationListOwner.IndexOfElement((ISyncMember)impulseTarget);
+            }
+            serializedConnections.ImpulseOperationConnections.Add(serial);
+        }
+
+        void HandleInputOutput(ISyncRef input, SerializedConnection serial)
+        {
+            var inputTarget = input.Target;
+            if (inputTarget is null) return;
+            var targetOwner = nodes.FirstOrDefault(i =>
+                i.NodeOutputs.Concat(i.NodeOutputLists.SelectMany(j => j.Elements.OfType<INodeOutput>()))
+                    .Any(j => j == inputTarget));
+            if (targetOwner is null) return;
+            
+            serial.FromGuid = serializedNodes[targetOwner].Guid;
+            
+            var outputListOwner = targetOwner.NodeOutputLists.FirstOrDefault(i => i.Elements.OfType<IWorldElement>().Any(j => j == inputTarget));
+            if (outputListOwner is null)
+            {
+                serial.FromName = inputTarget == targetOwner ? "*" : inputTarget.Name;
+                serial.FromIndex = -1;
+            }
+            else
+            {
+                serial.FromName = outputListOwner.Name;
+                serial.FromIndex = outputListOwner.IndexOfElement((ISyncMember)inputTarget);
+            }
+            serializedConnections.InputOutputConnections.Add(serial);
+        }
+    }
+
+    private static readonly MethodInfo SerializeValueInputExtrasMethod =
+        typeof(ResoniteScriptDeserializer).GetMethod(nameof(SerializeValueInputExtras),
+            BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo SerializeAssetInputExtrasMethod =
+        typeof(ResoniteScriptDeserializer).GetMethod(nameof(SerializeAssetInputExtras),
+            BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo SerializeValueObjectInputExtrasMethod =
+        typeof(ResoniteScriptDeserializer).GetMethod(nameof(SerializeValueObjectInputExtras),
+            BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo SerializeValueFieldDriveExtrasMethod =
+        typeof(ResoniteScriptDeserializer).GetMethod(nameof(SerializeValueFieldDriveExtras),
+            BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo SerializeObjectFieldDriveExtrasMethod =
+        typeof(ResoniteScriptDeserializer).GetMethod(nameof(SerializeObjectFieldDriveExtras),
+            BindingFlags.Static | BindingFlags.NonPublic);
+    private static readonly MethodInfo SerializeReferenceDriveExtrasMethod =
+        typeof(ResoniteScriptDeserializer).GetMethod(nameof(SerializeReferenceDriveExtras),
+            BindingFlags.Static | BindingFlags.NonPublic);
+    private static void SerializeValueInputExtras<T>(SerializedProtofluxNode serial, ValueInput<T> source) where T : unmanaged => SerializeValueExtra(serial, source.Value.Value.ToString(), typeof(T));
+    private static void SerializeAssetInputExtras<T>(SerializedProtofluxNode serial, AssetInput<T> source,
+        Dictionary<Type, List<object>> refs) where T : class, IAsset => SerializeValueExtra(serial,
+        GetGlobalRefIndex(refs, typeof(IAssetProvider<T>), source.Target.Target).ToString(), typeof(int));
+    private static void SerializeValueObjectInputExtras<T>(SerializedProtofluxNode serial, ValueObjectInput<T> source) => SerializeValueExtra(serial, source.Value.Value.ToString(), typeof(T));
+    private static void SerializeValueExtra(SerializedProtofluxNode serial, string str, Type type)
+    {
+        if (SupportedDedicatedEditors.Contains(type) || type.IsEnum)
+            serial.Extras.Add(new SerializedExtra
+            {
+                Name = "Value",
+                Value = str,
+            });
+        //TODO: non-dedicated editor types
+    }
+
+    private static void SerializeValueFieldDriveExtras<T>(SerializedProtofluxNode serial, ValueFieldDrive<T> drive,
+        Dictionary<Type, List<object>> refs) where T : unmanaged =>
+        SerializeDriveExtra(serial, typeof(IField<T>), drive.GetRootProxy().Drive.Target, refs);
+    private static void SerializeObjectFieldDriveExtras<T>(SerializedProtofluxNode serial, ObjectFieldDrive<T> drive,
+        Dictionary<Type, List<object>> refs) =>
+        SerializeDriveExtra(serial, typeof(IField<T>), drive.GetRootProxy().Drive.Target, refs);
+    private static void SerializeReferenceDriveExtras<T>(SerializedProtofluxNode serial, ReferenceDrive<T> drive,
+        Dictionary<Type, List<object>> refs) where T : class, IWorldElement
+    {
+        //why do the fielddrives have GetRootProxy(), but not referencedrive? thanks froox
+        var driveProxy =
+            drive.Slot.GetComponent<FrooxEngine.ProtoFlux.CoreNodes.ReferenceDrive<T>.Proxy>(
+                p => p.Node.Target == drive);
+        SerializeDriveExtra(serial, typeof(SyncRef<T>), driveProxy.Drive.Target, refs);
+    }
+
+    private static void SerializeDriveExtra(SerializedProtofluxNode serial, Type targetType, IWorldElement member, Dictionary<Type, List<object>> refs)
+    {
+        serial.Extras.Add(new SerializedExtra
+        {
+            Name = "Drive",
+            Value = GetGlobalRefIndex(refs, targetType, member).ToString(),
+        });
+    }
 
     public static void DeserializeScript(Slot rootSlot, SerializedScript script, DeserializeSettings settings)
     {
@@ -313,7 +614,7 @@ public static class ResoniteScriptDeserializer
                 }
                 catch (Exception e)
                 {
-                    SolderClient.Msg(e.ToString());
+                    ResoniteMod.Msg(e.ToString());
                 }
             }
 
@@ -329,7 +630,7 @@ public static class ResoniteScriptDeserializer
                 var parameters = type.GetGenericArguments();
                 var first = parameters.First();
 
-                if (baseType == typeof(global::FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.ValueInput<>))
+                if (baseType == typeof(ValueInput<>))
                 {
                     var extra = extras.FirstOrDefault(i => i.Name == "Value");
                     if (extra is not null)
@@ -338,7 +639,16 @@ public static class ResoniteScriptDeserializer
                             .Invoke(null, [component, extra, rootSlot]);
                     }
                 }
-                else if (baseType == typeof(global::FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.ValueObjectInput<>))
+                if (baseType == typeof(AssetInput<>))
+                {
+                    var extra = extras.FirstOrDefault(i => i.Name == "Value");
+                    if (extra is not null)
+                    {
+                        HandleAssetInputExtrasMethod.MakeGenericMethod(first)
+                            .Invoke(null, [component, extra, rootSlot]);
+                    }
+                }
+                else if (baseType == typeof(ValueObjectInput<>))
                 {
                     var extra = extras.FirstOrDefault(i => i.Name == "Value");
                     if (extra is not null)
@@ -347,7 +657,7 @@ public static class ResoniteScriptDeserializer
                             .Invoke(null, [component, extra, rootSlot]);
                     }
                 }
-                else if (baseType == typeof(global::FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes.ValueFieldDrive<>))
+                else if (baseType == typeof(ValueFieldDrive<>))
                 {
                     var extra = extras.FirstOrDefault(i => i.Name == "Drive");
                     if (extra is not null)
@@ -356,7 +666,7 @@ public static class ResoniteScriptDeserializer
                             .Invoke(null, [component, extra, rootSlot]);
                     }
                 }
-                else if (baseType == typeof(global::FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes.ObjectFieldDrive<>))
+                else if (baseType == typeof(ObjectFieldDrive<>))
                 {
                     var extra = extras.FirstOrDefault(i => i.Name == "Drive");
                     if (extra is not null)
@@ -365,8 +675,7 @@ public static class ResoniteScriptDeserializer
                             .Invoke(null, [component, extra, rootSlot]);
                     }
                 }
-
-                else if (baseType == typeof(global::FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes.ReferenceDrive<>))
+                else if (baseType == typeof(ReferenceDrive<>))
                 {
                     var extra = extras.FirstOrDefault(i => i.Name == "Drive");
                     if (extra is not null)
@@ -433,7 +742,7 @@ public static class ResoniteScriptDeserializer
         }
     }
 
-    private static void HandleValueFieldDrive<T>(FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes.ValueFieldDrive<T> input,
+    private static void HandleValueFieldDrive<T>(ValueFieldDrive<T> input,
         SerializedExtra extra, Slot rootSlot) where T : unmanaged
     {
         var findImport = rootSlot.GetComponent<ReferenceMultiplexer<IField<T>>>();
@@ -442,7 +751,7 @@ public static class ResoniteScriptDeserializer
         input.GetRootProxy().Drive.Target = value;
     }
 
-    private static void HandleObjectFieldDrive<T>(FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes.ObjectFieldDrive<T> input,
+    private static void HandleObjectFieldDrive<T>(ObjectFieldDrive<T> input,
         SerializedExtra extra, Slot rootSlot)
     {
         var findImport = rootSlot.GetComponent<ReferenceMultiplexer<IField<T>>>();
@@ -451,7 +760,7 @@ public static class ResoniteScriptDeserializer
         input.GetRootProxy().Drive.Target = value;
     }
 
-    private static void HandleReferenceDrive<T>(FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes.ReferenceDrive<T> input,
+    private static void HandleReferenceDrive<T>(ReferenceDrive<T> input,
         SerializedExtra extra, Slot rootSlot) where T : class, IWorldElement
     {
         var findImport = rootSlot.GetComponent<ReferenceMultiplexer<SyncRef<T>>>();
@@ -460,7 +769,15 @@ public static class ResoniteScriptDeserializer
         input.TrySetRootTarget(value);
     }
 
-    private static void HandleValueInputExtras<T>(FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.ValueInput<T> input,
+    private static void HandleAssetInputExtras<T>(AssetInput<T> input,
+        SerializedExtra extra, Slot rootSlot) where T : class, IAsset
+    {
+        var findImport = rootSlot.GetComponent<ReferenceMultiplexer<IAssetProvider<T>>>();
+        if (findImport is null) return;
+
+        input.Target.Target = findImport.References[int.Parse(extra.Value)];
+    }
+    private static void HandleValueInputExtras<T>(ValueInput<T> input,
         SerializedExtra extra, Slot rootSlot) where T : unmanaged
     {
         if (SupportedDedicatedEditors.Contains(typeof(T)))
@@ -477,7 +794,7 @@ public static class ResoniteScriptDeserializer
     }
 
     private static void HandleValueObjectInputExtras<T>(
-        FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.ValueObjectInput<T> input, SerializedExtra extra, Slot rootSlot)
+        ValueObjectInput<T> input, SerializedExtra extra, Slot rootSlot)
     {
         if (SupportedDedicatedEditors.Contains(typeof(T)))
         {
@@ -541,7 +858,7 @@ public static class ResoniteScriptDeserializer
         }
         catch (Exception e)
         {
-            SolderClient.Msg(e.ToString());
+            ResoniteMod.Msg(e.ToString());
         }
     }
 
@@ -579,7 +896,7 @@ public static class ResoniteScriptDeserializer
         }
         catch (Exception e)
         {
-            SolderClient.Msg(e.ToString());
+            ResoniteMod.Msg(e.ToString());
         }
     }
 }

@@ -17,7 +17,7 @@ public class SolderClient : ResoniteMod
 {
     public override string Name => "Solder.Client";
     public override string Author => "Fro Zen";
-    public override string Version => "1.0.0";
+    public override string Version => "1.1.0";
     
     [AutoRegisterConfigKey]
     internal static readonly ModConfigurationKey<bool> Monopack =
@@ -28,6 +28,9 @@ public class SolderClient : ResoniteMod
         new("persistence", "Persistence", () => true);
 
     internal static ModConfiguration Config;
+
+    public static string ScriptPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Scripts");
+    public static string SanitizeString(string str) => Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(str));
 
     public override void OnEngineInit()
     {
@@ -52,10 +55,27 @@ public static class ProtoFluxToolPatch
         
         var tag = slot.Tag;
         
-        if (!tag.StartsWith("Compile(") || !tag.EndsWith(")")) return;
+        if (string.IsNullOrWhiteSpace(tag) || !tag.StartsWith("Compile(") || !tag.EndsWith(")"))
+        {
+            if (slot.Children.Any() && slot.Children.Any(i => i.Components.OfType<ProtoFluxNode>().Any()))
+            {
+                var exportItem = menu.AddItem("Export ProtoFlux", (Uri)null, colorX.Red);
+                exportItem.Button.LocalPressed += (_, _) =>
+                {
+                    var serialized = JsonSerializer.Serialize(ResoniteScriptDeserializer.ExportScript(slot), new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                    });
+                    var parsedName = SolderClient.SanitizeString(slot.Name);
+                    var findPath = Path.Combine(SolderClient.ScriptPath, $"{parsedName}.pfscript");
+                    File.WriteAllText(findPath, serialized);
+                };
+            }
+            return;
+        }
         
         var scriptName = tag.Substring(("Compile(".Length), (tag.Length - 1) - ("Compile(".Length));
-        var parsedName = Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(scriptName));
+        var parsedName = SolderClient.SanitizeString(scriptName);
 
         if (string.IsNullOrWhiteSpace(parsedName)) return;
         
@@ -63,7 +83,7 @@ public static class ProtoFluxToolPatch
         compileMenuItem.Button.LocalPressed += (_, _) =>
         {
             //TODO: config
-            var findPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Scripts", $"{parsedName}.pfscript");
+            var findPath = Path.Combine(SolderClient.ScriptPath, $"{parsedName}.pfscript");
             if (!File.Exists(findPath)) return;
             var file = File.ReadAllText(findPath);
             var deserialize = JsonSerializer.Deserialize<SerializedScript>(file);
@@ -87,7 +107,7 @@ public static class ProtoFluxToolPatch
         ensureImportsMenuItem.Button.LocalPressed += (_, _) =>
         {
             //TODO: config
-            var findPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Scripts", $"{parsedName}.pfscript");
+            var findPath = Path.Combine(SolderClient.ScriptPath, $"{parsedName}.pfscript");
             if (!File.Exists(findPath)) return;
             var file = File.ReadAllText(findPath);
             var deserialize = JsonSerializer.Deserialize<SerializedScript>(file);

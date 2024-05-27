@@ -1,16 +1,20 @@
-[gd_scene load_steps=4 format=3 uid="uid://cah22xxoqhlkm"]
+[gd_scene load_steps=5 format=3 uid="uid://cah22xxoqhlkm"]
 
 [ext_resource type="Script" path="res://EditorRoot.cs" id="1_mnwo8"]
 [ext_resource type="Script" path="res://EditorGraph.cs" id="2_ljx1q"]
 [ext_resource type="Script" path="res://TypeNameMap.cs" id="3_ev6ji"]
 
-[node name="Control" type="Control"]
-layout_mode = 3
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_qb5t4"]
+
+[node name="Control" type="PanelContainer"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxEmpty_qb5t4")
 
 [node name="Root" type="Node" parent="." node_paths=PackedStringArray("NodeBrowserTree", "NodeBrowserSearchBar", "CreateCommentButton", "NodeGraph", "HoverTextRoot", "HoverTextLabel", "GenericTypeLabel", "GenericTypeCreateButton", "GenericTypeRoot", "GenericTypePresetRoot", "SaveDirectoryLabel", "SaveDirectorySetButton", "SaveNameEdit", "SaveButton", "LoadButton", "TypeNameMap", "RightClickPopupMenu", "CreditLabel")]
 script = ExtResource("1_mnwo8")
@@ -35,10 +39,6 @@ CreditLabel = NodePath("../MainContainer/HBoxContainer/TabContainer/Save/VBoxCon
 
 [node name="MainContainer" type="PanelContainer" parent="."]
 layout_mode = 2
-offset_right = 1152.0
-offset_bottom = 648.0
-grow_horizontal = 2
-grow_vertical = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="MainContainer"]
 layout_mode = 2
@@ -179,12 +179,14 @@ Root = NodePath("../../../../Root")
 
 [node name="HoverTextRoot" type="PanelContainer" parent="."]
 layout_mode = 2
-offset_right = 68.0
-offset_bottom = 31.0
+size_flags_horizontal = 0
+size_flags_vertical = 0
 mouse_filter = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="HoverTextRoot"]
 layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
 mouse_filter = 2
 theme_override_constants/margin_left = 4
 theme_override_constants/margin_top = 4
@@ -198,8 +200,6 @@ text = "Test123"
 [node name="RightClickRoot" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 2
-offset_right = 1152.0
-offset_bottom = 648.0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="RightClickRoot"]
 layout_mode = 2
