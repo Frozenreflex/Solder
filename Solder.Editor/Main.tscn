@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=3 uid="uid://cah22xxoqhlkm"]
+[gd_scene load_steps=5 format=3 uid="uid://cah22xxoqhlkm"]
 
 [ext_resource type="Script" path="res://EditorRoot.cs" id="1_mnwo8"]
+[ext_resource type="Script" path="res://Scripts/ResizeContainer.gd" id="2_bt6d0"]
 [ext_resource type="Script" path="res://EditorGraph.cs" id="2_ljx1q"]
 [ext_resource type="Script" path="res://TypeNameMap.cs" id="3_ev6ji"]
 
@@ -35,10 +36,11 @@ CreditLabel = NodePath("../MainContainer/HBoxContainer/TabContainer/Save/VBoxCon
 
 [node name="MainContainer" type="PanelContainer" parent="."]
 layout_mode = 2
-offset_right = 1152.0
-offset_bottom = 648.0
+offset_right = 648.0
+offset_bottom = 283.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("2_bt6d0")
 
 [node name="HBoxContainer" type="HBoxContainer" parent="MainContainer"]
 layout_mode = 2
@@ -66,7 +68,7 @@ text = "Create Comment"
 [node name="GraphEdit" type="GraphEdit" parent="MainContainer/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-scroll_offset = Vector2(0, -279)
+scroll_offset = Vector2(0, -283)
 right_disconnects = true
 show_zoom_label = true
 script = ExtResource("2_ljx1q")
