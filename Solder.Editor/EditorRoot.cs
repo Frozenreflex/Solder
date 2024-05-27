@@ -97,6 +97,12 @@ public partial class EditorRoot : Node
     private Vector2 _lastRightClickPosition;
 
     private string _copy;
+    
+    public static string SanitizeString(string fileName)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        return new string(fileName.Where(ch => !invalidChars.Contains(ch)).ToArray());
+    }
     public override void _Ready()
     {
         base._Ready();
@@ -129,6 +135,7 @@ public partial class EditorRoot : Node
         NodeGraph.ChildEnteredTree += _ => TypeNameMap.CallDeferred(TypeNameMap.MethodName.Regenerate);
         
         //save dialog and generic type picker
+        SaveNameEdit.TextChanged += SaveNameEditOnTextChanged;
         SaveButton.Disabled = true;
         GenericTypeCreateButton.Pressed += GenericTypeCreateButtonOnPressed;
         SaveButton.Pressed += SaveButtonOnPressed;
@@ -148,6 +155,13 @@ public partial class EditorRoot : Node
         TypeNameMap.Regenerate();
         
         LoadPath();
+    }
+    private void SaveNameEditOnTextChanged(string newtext)
+    {
+        var caret = SaveNameEdit.CaretColumn;
+        var str = SanitizeString(newtext);
+        SaveNameEdit.Text = str;
+        SaveNameEdit.CaretColumn = caret;
     }
     private void PopupMenuOnIdPressed(PopupMenu menu, int id)
     {
@@ -639,7 +653,7 @@ public partial class EditorRoot : Node
     {
         if (!Directory.Exists(StoredSavePath)) return;
         //TODO
-        var parsedName = Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(SaveNameEdit.Text));
+        var parsedName = SaveNameEdit.Text;
         if (string.IsNullOrWhiteSpace(parsedName)) return;
 
         var path = Path.Combine(StoredSavePath, $"{parsedName}.pfscript");
@@ -708,7 +722,7 @@ public partial class EditorRoot : Node
         if (Directory.Exists(StoredSavePath))
         {
             //TODO
-            var parsedName = Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(SaveNameEdit.Text));
+            var parsedName = SaveNameEdit.Text;
             if (!string.IsNullOrWhiteSpace(parsedName))
             {
                 var serialize = this.SerializeScript();

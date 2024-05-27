@@ -30,13 +30,20 @@ public class SolderClient : ResoniteMod
     internal static ModConfiguration Config;
 
     public static string ScriptPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Scripts");
-    public static string SanitizeString(string str) => Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(str));
+    //public static string SanitizeString(string str) => Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(str));
+    
+    public static string SanitizeString(string fileName)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        return new string(fileName.Where(ch => !invalidChars.Contains(ch)).ToArray());
+    }
 
     public override void OnEngineInit()
     {
         var harmony = new Harmony("Solder.Client");
         harmony.PatchAll();
         Config = GetConfiguration();
+        if (!Directory.Exists(ScriptPath)) Directory.CreateDirectory(ScriptPath);
     }
 }
 
