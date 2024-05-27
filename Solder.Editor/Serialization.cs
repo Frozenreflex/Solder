@@ -83,6 +83,12 @@ public class SerializedImportName
     [JsonInclude] public TypeSerialization Type { get; set; }
     [JsonInclude] public List<string> Names { get; set; }
 }
+public class SerializedMetadata
+{
+    [JsonInclude] public float ColorR = 1;
+    [JsonInclude] public float ColorG = 1;
+    [JsonInclude] public float ColorB = 1;
+}
 public class SerializedScript
 {
     [JsonInclude] public int Version = 1;
@@ -91,6 +97,7 @@ public class SerializedScript
     [JsonInclude] public SerializedConnections Connections { get; set; } = new();
     [JsonInclude] public List<SerializedComment> Comments { get; set; } = new();
     [JsonInclude] public List<SerializedImportName> ImportNames { get; set; } = new();
+    [JsonInclude] public SerializedMetadata Metadata { get; set; } = new();
 }
 
 public class TypeSerialization

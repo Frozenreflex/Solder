@@ -80,6 +80,12 @@ public class SerializedImportName
     [JsonInclude] public List<string> Names { get; set; }
 }
 
+public class SerializedMetadata
+{
+    [JsonInclude] public float ColorR = 1;
+    [JsonInclude] public float ColorG = 1;
+    [JsonInclude] public float ColorB = 1;
+}
 public class SerializedScript
 {
     [JsonInclude] public int Version = 1;
@@ -88,6 +94,7 @@ public class SerializedScript
     [JsonInclude] public SerializedConnections Connections { get; set; } = new();
     [JsonInclude] public List<SerializedComment> Comments { get; set; } = new();
     [JsonInclude] public List<SerializedImportName> ImportNames { get; set; } = new();
+    [JsonInclude] public SerializedMetadata Metadata { get; set; } = new();
 }
 
 public class TypeSerialization
@@ -133,8 +140,98 @@ public class TypeSerialization
 
 public class DeserializeSettings
 {
-    public bool Monopack;
+    public CompileMode Mode;
+    public bool Monopack = false;
     public bool Persistent = true;
+    public Slot ImportRoot;
+    public Dictionary<Type, List<string>> ImportNames;
+
+    private static readonly MethodInfo InternalImportReferenceMethod = typeof(DeserializeSettings).GetMethod(nameof(InternalImportReference), BindingFlags.Instance | BindingFlags.NonPublic);
+    private T InternalImportReference<T>(int index) where T : class, IWorldElement
+    {
+        var multiplexer = ImportRoot.GetComponent<ReferenceMultiplexer<T>>();
+        if (multiplexer is null) return null;
+        if (index >= multiplexer.References.Count) return null;
+        return multiplexer.References[index];
+    }
+    public T Import<T>(int index)
+    {
+        switch (Mode)
+        {
+            case CompileMode.Solder:
+            case CompileMode.RedprintPack:
+            {
+                var space = ImportRoot.GetComponent<DynamicVariableSpace>();
+                if (space is null) return default;
+                var nameList = ImportNames[typeof(T)];
+                if (nameList is null) return default;
+                if (index >= nameList.Count) return default;
+                var name = nameList[index];
+                var sanitized = DynamicVariableHelper.SanitizeName(name);
+                return space.TryReadValue<T>(sanitized, out var value) ? value : default;
+            }
+            case CompileMode.Barebones:
+            {
+                if (!Coder<T>.IsEnginePrimitive) return (T)InternalImportReferenceMethod.MakeGenericMethod(typeof(T)).Invoke(this, [index]);
+                
+                var multiplexer = ImportRoot.GetComponent<ValueMultiplexer<T>>();
+                if (multiplexer is null) return default;
+                if (index >= multiplexer.Values.Count) return default;
+                return multiplexer.Values.GetElement(index);
+            }
+        }
+        return default;
+    }
+    public Sync<T> ImportValue<T>(int index)
+    {
+        switch (Mode)
+        {
+            case CompileMode.Solder:
+            case CompileMode.RedprintPack:
+            {
+                var nameList = ImportNames[typeof(T)];
+                if (nameList is null) return default;
+                if (index >= nameList.Count) return default;
+                var name = nameList[index];
+                var sanitized = DynamicVariableHelper.SanitizeName(name);
+                var component = ImportRoot.GetComponent<DynamicValueVariable<T>>(i => i.VariableName.Value.EndsWith(sanitized));
+                return component?.Value;
+            }
+            case CompileMode.Barebones:
+            {
+                var multiplexer = ImportRoot.GetComponent<ValueMultiplexer<T>>();
+                if (multiplexer is null) return null;
+                if (index >= multiplexer.Values.Count) return null;
+                return multiplexer.Values.GetElement(index);
+            }
+        }
+        return default;
+    }
+    public SyncRef<T> ImportReference<T>(int index) where T : class, IWorldElement
+    {
+        switch (Mode)
+        {
+            case CompileMode.Solder:
+            case CompileMode.RedprintPack:
+            {
+                var nameList = ImportNames[typeof(T)];
+                if (nameList is null) return default;
+                if (index >= nameList.Count) return default;
+                var name = nameList[index];
+                var sanitized = DynamicVariableHelper.SanitizeName(name);
+                var component = ImportRoot.GetComponent<DynamicReferenceVariable<T>>(i => i.VariableName.Value.EndsWith(sanitized));
+                return component?.Reference;
+            }
+            case CompileMode.Barebones:
+            {
+                var multiplexer = ImportRoot.GetComponent<ReferenceMultiplexer<T>>();
+                if (multiplexer is null) return null;
+                if (index >= multiplexer.References.Count) return null;
+                return multiplexer.References.GetElement(index);
+            }
+        }
+        return default;
+    }
 }
 
 public static class ResoniteScriptDeserializer
@@ -540,12 +637,16 @@ public static class ResoniteScriptDeserializer
 
     public static void DeserializeScript(Slot rootSlot, SerializedScript script, DeserializeSettings settings)
     {
+        var monopack = settings.Mode is CompileMode.Barebones or CompileMode.Solder && settings.Monopack; //monopack is only supported in barebones and solder mode
         //remove any already compiled results, for a clean compile
-        var children = rootSlot.Children.ToList().Where(c => c.Tag == "Compiled").ToList();
-        foreach (var c in children) c.Destroy();
-
+        if (settings.Mode is CompileMode.Barebones)
+        {
+            var children = rootSlot.Children.ToList().Where(c => c.Tag == "Compiled").ToList();
+            foreach (var c in children) c.Destroy();
+        }
+        
         Slot monoPackRoot = null;
-        if (settings.Monopack)
+        if (monopack)
         {
             monoPackRoot = rootSlot.AddSlot("Monopack");
             monoPackRoot.PersistentSelf = settings.Persistent;
@@ -556,7 +657,7 @@ public static class ResoniteScriptDeserializer
 
         var positionOffset = float3.Zero;
 
-        if (!settings.Monopack)
+        if (!monopack)
         {
             var minX = script.Nodes.Min(i => i.X);
             var maxX = script.Nodes.Max(i => i.X);
@@ -575,7 +676,7 @@ public static class ResoniteScriptDeserializer
             if (!type.IsSubclassOf(typeof(ProtoFluxNode))) continue;
 
             Slot parent;
-            if (settings.Monopack) parent = monoPackRoot;
+            if (monopack) parent = monoPackRoot;
             else
             {
                 parent = rootSlot.AddSlot(type.Name);
@@ -610,7 +711,7 @@ public static class ResoniteScriptDeserializer
                     //SyncRef<IGlobalValueProxy<T>>
                     var valueType = find.GetType().GetGenericArguments().First().GetGenericArguments().First();
                     (valueType.IsEnginePrimitive() ? DoGlobalRefValueMethod : DoGlobalRefReferenceMethod)
-                        .MakeGenericMethod(valueType).Invoke(null, [globalRef, parent, find, rootSlot]);
+                        .MakeGenericMethod(valueType).Invoke(null, [globalRef, parent, find, rootSlot, settings]);
                 }
                 catch (Exception e)
                 {
@@ -636,7 +737,7 @@ public static class ResoniteScriptDeserializer
                     if (extra is not null)
                     {
                         HandleValueInputExtrasMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, rootSlot]);
+                            .Invoke(null, [component, extra, settings]);
                     }
                 }
                 if (baseType == typeof(AssetInput<>))
@@ -645,7 +746,7 @@ public static class ResoniteScriptDeserializer
                     if (extra is not null)
                     {
                         HandleAssetInputExtrasMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, rootSlot]);
+                            .Invoke(null, [component, extra, settings]);
                     }
                 }
                 else if (baseType == typeof(ValueObjectInput<>))
@@ -654,7 +755,7 @@ public static class ResoniteScriptDeserializer
                     if (extra is not null)
                     {
                         HandleValueObjectInputExtrasMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, rootSlot]);
+                            .Invoke(null, [component, extra, settings]);
                     }
                 }
                 else if (baseType == typeof(ValueFieldDrive<>))
@@ -663,7 +764,7 @@ public static class ResoniteScriptDeserializer
                     if (extra is not null)
                     {
                         HandleValueFieldDriveMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, rootSlot]);
+                            .Invoke(null, [component, extra, settings]);
                     }
                 }
                 else if (baseType == typeof(ObjectFieldDrive<>))
@@ -672,7 +773,7 @@ public static class ResoniteScriptDeserializer
                     if (extra is not null)
                     {
                         HandleObjectFieldDriveMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, rootSlot]);
+                            .Invoke(null, [component, extra, settings]);
                     }
                 }
                 else if (baseType == typeof(ReferenceDrive<>))
@@ -681,7 +782,7 @@ public static class ResoniteScriptDeserializer
                     if (extra is not null)
                     {
                         HandleReferenceDriveMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, rootSlot]);
+                            .Invoke(null, [component, extra, settings]);
                     }
                 }
             }
@@ -743,42 +844,33 @@ public static class ResoniteScriptDeserializer
     }
 
     private static void HandleValueFieldDrive<T>(ValueFieldDrive<T> input,
-        SerializedExtra extra, Slot rootSlot) where T : unmanaged
+        SerializedExtra extra, DeserializeSettings settings) where T : unmanaged
     {
-        var findImport = rootSlot.GetComponent<ReferenceMultiplexer<IField<T>>>();
-        if (findImport is null) return;
-        var value = findImport.References[int.Parse(extra.Value)];
-        input.GetRootProxy().Drive.Target = value;
+        var import = settings.Import<IField<T>>(int.Parse(extra.Value));
+        if (import is not null) input.GetRootProxy().Drive.Target = import;
     }
 
     private static void HandleObjectFieldDrive<T>(ObjectFieldDrive<T> input,
-        SerializedExtra extra, Slot rootSlot)
+        SerializedExtra extra, DeserializeSettings settings)
     {
-        var findImport = rootSlot.GetComponent<ReferenceMultiplexer<IField<T>>>();
-        if (findImport is null) return;
-        var value = findImport.References[int.Parse(extra.Value)];
-        input.GetRootProxy().Drive.Target = value;
+        var import = settings.Import<IField<T>>(int.Parse(extra.Value));
+        if (import is not null) input.GetRootProxy().Drive.Target = import;
     }
 
     private static void HandleReferenceDrive<T>(ReferenceDrive<T> input,
-        SerializedExtra extra, Slot rootSlot) where T : class, IWorldElement
+        SerializedExtra extra, DeserializeSettings settings) where T : class, IWorldElement
     {
-        var findImport = rootSlot.GetComponent<ReferenceMultiplexer<SyncRef<T>>>();
-        if (findImport is null) return;
-        var value = findImport.References[int.Parse(extra.Value)];
-        input.TrySetRootTarget(value);
+        var import = settings.Import<SyncRef<T>>(int.Parse(extra.Value));
+        if (import is not null) input.TrySetRootTarget(import);
     }
 
     private static void HandleAssetInputExtras<T>(AssetInput<T> input,
-        SerializedExtra extra, Slot rootSlot) where T : class, IAsset
+        SerializedExtra extra, DeserializeSettings settings) where T : class, IAsset
     {
-        var findImport = rootSlot.GetComponent<ReferenceMultiplexer<IAssetProvider<T>>>();
-        if (findImport is null) return;
-
-        input.Target.Target = findImport.References[int.Parse(extra.Value)];
+        input.Target.Target = settings.Import<IAssetProvider<T>>(int.Parse(extra.Value));
     }
     private static void HandleValueInputExtras<T>(ValueInput<T> input,
-        SerializedExtra extra, Slot rootSlot) where T : unmanaged
+        SerializedExtra extra, DeserializeSettings settings) where T : unmanaged
     {
         if (SupportedDedicatedEditors.Contains(typeof(T)))
         {
@@ -786,30 +878,21 @@ public static class ResoniteScriptDeserializer
         }
         else
         {
-            var findImport = rootSlot.GetComponent<ValueMultiplexer<T>>();
-            if (findImport is null) return;
-
-            input.Value.Value = findImport.Values[int.Parse(extra.Value)];
+            input.Value.Value = settings.Import<T>(int.Parse(extra.Value));
         }
     }
 
     private static void HandleValueObjectInputExtras<T>(
-        ValueObjectInput<T> input, SerializedExtra extra, Slot rootSlot)
+        ValueObjectInput<T> input, SerializedExtra extra, DeserializeSettings settings)
     {
         if (SupportedDedicatedEditors.Contains(typeof(T)))
         {
             if (Coder<T>.TryParse(extra.Value, out var value)) input.Value.Value = value;
         }
-        else
-        {
-            var findImport = rootSlot.GetComponent<ValueMultiplexer<T>>();
-            if (findImport is null) return;
-
-            input.Value.Value = findImport.Values[int.Parse(extra.Value)];
-        }
+        else input.Value.Value = settings.Import<T>(int.Parse(extra.Value));
     }
 
-    private static void DoGlobalRefValue<T>(SerializedGlobalRef globalRef, Slot parent, ISyncRef find, Slot rootSlot)
+    private static void DoGlobalRefValue<T>(SerializedGlobalRef globalRef, Slot parent, ISyncRef find, DeserializeSettings settings)
     {
         try
         {
@@ -820,40 +903,21 @@ public static class ResoniteScriptDeserializer
 
             if (globalRef.Drive)
             {
-                //SolderClient.Msg($"Drive");
-                var index = int.Parse(globalRef.Value);
-
-                var findImport = rootSlot.GetComponent<ValueMultiplexer<T>>();
-                if (findImport is null) return;
-
-                if (index >= findImport.Values.Count) return;
-                var copyFrom = findImport.Values.GetField(index);
-
+                var import = settings.ImportValue<T>(int.Parse(globalRef.Value));
+                if (import is null) return;
+                
                 var copy = parent.AttachComponent<ValueCopy<T>>();
                 copy.WriteBack.Value = true;
-                copy.Source.Target = copyFrom;
+                copy.Source.Target = import;
                 copy.Target.Target = target.Value;
             }
             else
             {
                 if (SupportedDedicatedEditors.Contains(typeof(T)))
                 {
-                    //SolderClient.Msg($"Dedicated Editor");
-                    if (Coder<T>.TryParse(globalRef.Value, out var value))
-                    {
-                        //SolderClient.Msg($"Parsed Successfully: {value.ToString()}");
-                        target.Value.Value = value;
-                    }
+                    if (Coder<T>.TryParse(globalRef.Value, out var value)) target.Value.Value = value;
                 }
-                else
-                {
-                    //SolderClient.Msg($"Import");
-
-                    var findImport = rootSlot.GetComponent<ValueMultiplexer<T>>();
-                    if (findImport is null) return;
-
-                    target.Value.Value = findImport.Values[int.Parse(globalRef.Value)];
-                }
+                else target.Value.Value = settings.Import<T>(int.Parse(globalRef.Value));
             }
         }
         catch (Exception e)
@@ -862,36 +926,26 @@ public static class ResoniteScriptDeserializer
         }
     }
 
-    private static void DoGlobalRefReference<T>(SerializedGlobalRef globalRef, Slot parent, ISyncRef find,
-        Slot rootSlot) where T : class, IWorldElement
+    private static void DoGlobalRefReference<T>(SerializedGlobalRef globalRef, Slot parent, ISyncRef find, DeserializeSettings settings) where T : class, IWorldElement
     {
         try
         {
             var target = parent.AttachComponent<GlobalReference<T>>();
             find.Target = target;
-
-
-            var findImport = rootSlot.GetComponent<ReferenceMultiplexer<T>>();
-            if (findImport is null) return;
-
-            //SolderClient.Msg($"GlobalRef {globalRef.Name}, Drive: {globalRef.Drive}, Value: {globalRef.Value}");
-
-            var index = int.Parse(globalRef.Value);
-            if (index >= findImport.References.Count) return;
-            var copyFrom = findImport.References.GetElement(int.Parse(globalRef.Value));
-
+            
             if (globalRef.Drive)
             {
+                var import = settings.ImportReference<T>(int.Parse(globalRef.Value));
                 //SolderClient.Msg($"Drive");
                 var copy = parent.AttachComponent<ReferenceCopy<T>>();
                 copy.WriteBack.Value = true;
-                copy.Source.Target = copyFrom;
+                copy.Source.Target = import;
                 copy.Target.Target = target.Reference;
             }
             else
             {
-                //SolderClient.Msg($"Import");
-                target.Reference.Target = copyFrom.Target;
+                var import = settings.Import<T>(int.Parse(globalRef.Value));
+                target.Reference.Target = import;
             }
         }
         catch (Exception e)
