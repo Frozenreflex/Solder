@@ -10,7 +10,6 @@ public class RedprintPack : BaseCompileMode
 {
     public static string SanitizeRedprintName(string name)
     {
-        //TODO: actually strip rich text tags properly instead of bodging it
         //<color=#80FFE7>TextDrive</color> - 6 Nodes
 
         if (string.IsNullOrWhiteSpace(name)) return name;
