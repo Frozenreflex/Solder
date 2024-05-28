@@ -554,13 +554,9 @@ public static class ResoniteScriptDeserializer
 
     public static void DeserializeScript(Slot rootSlot, SerializedScript script, DeserializeSettings settings)
     {
-        var monopack = settings.Mode is (Barebones or Solder.Client.CompileModes.Solder) && settings.Monopack; //monopack is only supported in barebones and solder mode
+        var monopack = settings.Mode.SupportsMonopack && settings.Monopack;
         //remove any already compiled results, for a clean compile
-        if (settings.Mode is Barebones)
-        {
-            var children = rootSlot.Children.ToList().Where(c => c.Tag == "Compiled").ToList();
-            foreach (var c in children) c.Destroy();
-        }
+        settings.Mode.CleanupPreviousCompile(rootSlot);
         
         Slot monoPackRoot = null;
         if (monopack)

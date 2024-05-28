@@ -9,6 +9,7 @@ namespace Solder.Client.CompileModes;
 
 public class Solder : BaseCompileMode
 {
+    public override bool SupportsMonopack => true;
     public override CompileMode Mode => CompileMode.Solder;
     public override void GenerateMenu(Slot slot, ContextMenu menu, bool monopack, bool persist)
     {
@@ -21,7 +22,7 @@ public class Solder : BaseCompileMode
         if (!File.Exists(findPath)) return;
                 
         var compileMenuItem = menu.AddItem("Compile Script", (Uri)null, colorX.Lime);
-        compileMenuItem.Button.LocalPressed += (_, _) => CompileButtonMethod(findPath, this, monopack, persist, slot, slot);
+        compileMenuItem.Button.LocalPressed += (_, _) => CompileButtonMethod(findPath, this, monopack, persist, slot, slot, slot);
                 
         var initializeMenuItem = menu.AddItem("Initialize", (Uri)null, colorX.Azure);
         initializeMenuItem.Button.LocalPressed += (_, _) =>
@@ -48,4 +49,9 @@ public class Solder : BaseCompileMode
     public override T Import<T>(int index) => this.DynamicImport<T>(index);
     public override Sync<T> ImportValue<T>(int index) => this.DynamicImportValue<T>(index);
     public override SyncRef<T> ImportReference<T>(int index) => this.DynamicImportReference<T>(index);
+    public override void CleanupPreviousCompile(Slot nodeRoot)
+    {
+        var children = nodeRoot.Children.ToList().Where(c => c.Tag == "Compiled").ToList();
+        foreach (var c in children) c.Destroy();
+    }
 }

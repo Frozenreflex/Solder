@@ -23,6 +23,9 @@
     <Reference Include="Elements.Core">
       <HintPath>$(ResonitePath)Resonite_Data/Managed/Elements.Core.dll</HintPath>
     </Reference>
+    <Reference Include="Elements.Assets">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/Elements.Assets.dll</HintPath>
+    </Reference>
     <Reference Include="ProtoFlux.Core">
       <HintPath>$(ResonitePath)Resonite_Data/Managed/ProtoFlux.Core.dll</HintPath>
     </Reference>

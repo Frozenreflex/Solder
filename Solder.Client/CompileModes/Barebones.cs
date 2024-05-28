@@ -10,6 +10,7 @@ namespace Solder.Client.CompileModes;
 
 public class Barebones : BaseCompileMode
 {
+    public override bool SupportsMonopack => true;
     private static readonly MethodInfo InternalImportReferenceMethod = typeof(DeserializeSettings).GetMethod(nameof(InternalImportReference), BindingFlags.Instance | BindingFlags.NonPublic);
     private T InternalImportReference<T>(int index) where T : class, IWorldElement
     {
@@ -55,7 +56,7 @@ public class Barebones : BaseCompileMode
         if (!File.Exists(findPath)) return;
 
         var compileMenuItem = menu.AddItem("Compile Script", (Uri)null, colorX.Lime);
-        compileMenuItem.Button.LocalPressed += (_, _) => CompileButtonMethod(findPath, this, monopack, persist, slot, slot);
+        compileMenuItem.Button.LocalPressed += (_, _) => CompileButtonMethod(findPath, this, monopack, persist, slot, slot, slot);
 
         var initializeMenuItem = menu.AddItem("Initialize", (Uri)null, colorX.Azure);
         initializeMenuItem.Button.LocalPressed += (_, _) =>
@@ -103,5 +104,10 @@ public class Barebones : BaseCompileMode
         if (multiplexer is null) return null;
         if (index >= multiplexer.References.Count) return null;
         return multiplexer.References.GetElement(index);
+    }
+    public override void CleanupPreviousCompile(Slot nodeRoot)
+    {
+        var children = nodeRoot.Children.ToList().Where(c => c.Tag == "Compiled").ToList();
+        foreach (var c in children) c.Destroy();
     }
 }
