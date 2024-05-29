@@ -440,7 +440,7 @@ public partial class EditorRoot : Node
                 AddPopupMenuConnectButton(RightClickPopupMenu,"Fire While True", typeof(FireWhileTrue));
                 
                 AddPopupMenuConnectButton(RightClickPopupMenu,"Local Fire On True", typeof(FireOnLocalTrue));
-                AddPopupMenuConnectButton(RightClickPopupMenu,"Local Fire On False", typeof(FireOnLocalTrue));
+                AddPopupMenuConnectButton(RightClickPopupMenu,"Local Fire On False", typeof(FireOnLocalFalse));
                 AddPopupMenuConnectButton(RightClickPopupMenu,"Local Fire While True", typeof(LocalFireWhileTrue));
             }
             
