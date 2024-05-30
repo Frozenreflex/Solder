@@ -11,7 +11,7 @@ namespace Solder.Client.CompileModes;
 public class Barebones : BaseCompileMode
 {
     public override bool SupportsMonopack => true;
-    private static readonly MethodInfo InternalImportReferenceMethod = typeof(DeserializeSettings).GetMethod(nameof(InternalImportReference), BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly MethodInfo InternalImportReferenceMethod = typeof(Barebones).GetMethod(nameof(InternalImportReference), BindingFlags.Instance | BindingFlags.NonPublic);
     private T InternalImportReference<T>(int index) where T : class, IWorldElement
     {
         var multiplexer = Settings.ImportRoot.GetComponent<ReferenceMultiplexer<T>>();

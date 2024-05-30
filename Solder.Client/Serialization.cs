@@ -624,7 +624,7 @@ public static class ResoniteScriptDeserializer
                     //SyncRef<IGlobalValueProxy<T>>
                     var valueType = find.GetType().GetGenericArguments().First().GetGenericArguments().First();
                     (valueType.IsEnginePrimitive() ? DoGlobalRefValueMethod : DoGlobalRefReferenceMethod)
-                        .MakeGenericMethod(valueType).Invoke(null, [globalRef, parent, find, rootSlot, settings]);
+                        .MakeGenericMethod(valueType).Invoke(null, [globalRef, parent, find, settings]);
                 }
                 catch (Exception e)
                 {
