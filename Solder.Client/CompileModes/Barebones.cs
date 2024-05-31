@@ -21,11 +21,11 @@ public class Barebones : BaseCompileMode
     }
     
     private static readonly MethodInfo BarebonesHandleEnsureValueImportMethod =
-        typeof(ProtoFluxToolPatch).GetMethod(nameof(BarebonesHandleEnsureValueImport),
+        typeof(Barebones).GetMethod(nameof(BarebonesHandleEnsureValueImport),
             BindingFlags.Static | BindingFlags.NonPublic);
 
     private static readonly MethodInfo BarebonesHandleEnsureReferenceImportMethod =
-        typeof(ProtoFluxToolPatch).GetMethod(nameof(BarebonesHandleEnsureReferenceImport),
+        typeof(Barebones).GetMethod(nameof(BarebonesHandleEnsureReferenceImport),
             BindingFlags.Static | BindingFlags.NonPublic);
 
     private static void BarebonesHandleEnsureValueImport<T>(Slot root, int count)
