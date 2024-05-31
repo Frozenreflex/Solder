@@ -323,7 +323,7 @@ public static class ResoniteScriptDeserializer
                 if (target is not IGlobalValueProxy globalValueProxy) continue;
                 
                 var type = globalValueProxy.ValueType;
-                if (SupportedDedicatedEditors.Contains(type))
+                if (SupportedDedicatedEditors.Contains(type) || type.IsEnum)
                 {
                     serialized.GlobalRefs.Add(new SerializedGlobalRef
                     {
@@ -644,59 +644,65 @@ public static class ResoniteScriptDeserializer
                 var parameters = type.GetGenericArguments();
                 var first = parameters.First();
 
-                if (baseType == typeof(ValueInput<>))
+                try
                 {
-                    var extra = extras.FirstOrDefault(i => i.Name == "Value");
-                    if (extra is not null)
+                    if (baseType == typeof(ValueInput<>))
                     {
-                        HandleValueInputExtrasMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, settings]);
+                        var extra = extras.FirstOrDefault(i => i.Name == "Value");
+                        if (extra is not null)
+                        {
+                            HandleValueInputExtrasMethod.MakeGenericMethod(first)
+                                .Invoke(null, [component, extra, settings]);
+                        }
+                    }
+                    if (baseType == typeof(AssetInput<>))
+                    {
+                        var extra = extras.FirstOrDefault(i => i.Name == "Value");
+                        if (extra is not null)
+                        {
+                            HandleAssetInputExtrasMethod.MakeGenericMethod(first)
+                                .Invoke(null, [component, extra, settings]);
+                        }
+                    }
+                    else if (baseType == typeof(ValueObjectInput<>))
+                    {
+                        var extra = extras.FirstOrDefault(i => i.Name == "Value");
+                        if (extra is not null)
+                        {
+                            HandleValueObjectInputExtrasMethod.MakeGenericMethod(first)
+                                .Invoke(null, [component, extra, settings]);
+                        }
+                    }
+                    else if (baseType == typeof(ValueFieldDrive<>))
+                    {
+                        var extra = extras.FirstOrDefault(i => i.Name == "Drive");
+                        if (extra is not null)
+                        {
+                            HandleValueFieldDriveMethod.MakeGenericMethod(first)
+                                .Invoke(null, [component, extra, settings]);
+                        }
+                    }
+                    else if (baseType == typeof(ObjectFieldDrive<>))
+                    {
+                        var extra = extras.FirstOrDefault(i => i.Name == "Drive");
+                        if (extra is not null)
+                        {
+                            HandleObjectFieldDriveMethod.MakeGenericMethod(first)
+                                .Invoke(null, [component, extra, settings]);
+                        }
+                    }
+                    else if (baseType == typeof(ReferenceDrive<>))
+                    {
+                        var extra = extras.FirstOrDefault(i => i.Name == "Drive");
+                        if (extra is not null)
+                        {
+                            HandleReferenceDriveMethod.MakeGenericMethod(first)
+                                .Invoke(null, [component, extra, settings]);
+                        }
                     }
                 }
-                if (baseType == typeof(AssetInput<>))
+                catch
                 {
-                    var extra = extras.FirstOrDefault(i => i.Name == "Value");
-                    if (extra is not null)
-                    {
-                        HandleAssetInputExtrasMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, settings]);
-                    }
-                }
-                else if (baseType == typeof(ValueObjectInput<>))
-                {
-                    var extra = extras.FirstOrDefault(i => i.Name == "Value");
-                    if (extra is not null)
-                    {
-                        HandleValueObjectInputExtrasMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, settings]);
-                    }
-                }
-                else if (baseType == typeof(ValueFieldDrive<>))
-                {
-                    var extra = extras.FirstOrDefault(i => i.Name == "Drive");
-                    if (extra is not null)
-                    {
-                        HandleValueFieldDriveMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, settings]);
-                    }
-                }
-                else if (baseType == typeof(ObjectFieldDrive<>))
-                {
-                    var extra = extras.FirstOrDefault(i => i.Name == "Drive");
-                    if (extra is not null)
-                    {
-                        HandleObjectFieldDriveMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, settings]);
-                    }
-                }
-                else if (baseType == typeof(ReferenceDrive<>))
-                {
-                    var extra = extras.FirstOrDefault(i => i.Name == "Drive");
-                    if (extra is not null)
-                    {
-                        HandleReferenceDriveMethod.MakeGenericMethod(first)
-                            .Invoke(null, [component, extra, settings]);
-                    }
                 }
             }
         }
@@ -780,7 +786,7 @@ public static class ResoniteScriptDeserializer
     private static void HandleAssetInputExtras<T>(AssetInput<T> input,
         SerializedExtra extra, DeserializeSettings settings) where T : class, IAsset
     {
-        input.Target.Target = settings.Import<IAssetProvider<T>>(int.Parse(extra.Value));
+        if (int.TryParse(extra.Value, out var val)) input.Target.Target = settings.Import<IAssetProvider<T>>(val);
     }
     private static void HandleValueInputExtras<T>(ValueInput<T> input,
         SerializedExtra extra, DeserializeSettings settings) where T : unmanaged
@@ -789,10 +795,12 @@ public static class ResoniteScriptDeserializer
         {
             if (Coder<T>.TryParse(extra.Value, out var value)) input.Value.Value = value;
         }
-        else
+        else if (typeof(T).IsEnum)
         {
-            input.Value.Value = settings.Import<T>(int.Parse(extra.Value));
+            //THANKS FROOX
+            input.Value.Value = (T)Enum.Parse(typeof(T), extra.Value);
         }
+        else if (int.TryParse(extra.Value, out var val)) input.Value.Value = settings.Import<T>(val);
     }
 
     private static void HandleValueObjectInputExtras<T>(
@@ -802,7 +810,12 @@ public static class ResoniteScriptDeserializer
         {
             if (Coder<T>.TryParse(extra.Value, out var value)) input.Value.Value = value;
         }
-        else input.Value.Value = settings.Import<T>(int.Parse(extra.Value));
+        else if (typeof(T).IsEnum)
+        {
+            //THANKS FROOX
+            input.Value.Value = (T)Enum.Parse(typeof(T), extra.Value);
+        }
+        else if (int.TryParse(extra.Value, out var val)) input.Value.Value = settings.Import<T>(val);
     }
 
     private static void DoGlobalRefValue<T>(SerializedGlobalRef globalRef, Slot parent, ISyncRef find, DeserializeSettings settings)
@@ -830,7 +843,12 @@ public static class ResoniteScriptDeserializer
                 {
                     if (Coder<T>.TryParse(globalRef.Value, out var value)) target.Value.Value = value;
                 }
-                else target.Value.Value = settings.Import<T>(int.Parse(globalRef.Value));
+                else if (typeof(T).IsEnum)
+                {
+                    //THANKS FROOX
+                    target.Value.Value = (T)Enum.Parse(typeof(T), globalRef.Value);
+                }
+                else if (int.TryParse(globalRef.Value, out var val)) target.Value.Value = settings.Import<T>(val);
             }
         }
         catch (Exception e)
@@ -846,19 +864,23 @@ public static class ResoniteScriptDeserializer
             var target = parent.AttachComponent<GlobalReference<T>>();
             find.Target = target;
             
-            if (globalRef.Drive)
+            if (int.TryParse(globalRef.Value, out var val))
             {
-                var import = settings.ImportReference<T>(int.Parse(globalRef.Value));
-                //SolderClient.Msg($"Drive");
-                var copy = parent.AttachComponent<ReferenceCopy<T>>();
-                copy.WriteBack.Value = true;
-                copy.Source.Target = import;
-                copy.Target.Target = target.Reference;
-            }
-            else
-            {
-                var import = settings.Import<T>(int.Parse(globalRef.Value));
-                target.Reference.Target = import;
+                if (globalRef.Drive)
+                {
+                    var import = settings.ImportReference<T>(val);
+                    //SolderClient.Msg($"Drive");
+                    var copy = parent.AttachComponent<ReferenceCopy<T>>();
+                    copy.WriteBack.Value = true;
+                    copy.Source.Target = import;
+                    copy.Target.Target = target.Reference;
+                }
+                else
+                {
+
+                    var import = settings.Import<T>(val);
+                    target.Reference.Target = import;
+                }
             }
         }
         catch (Exception e)
