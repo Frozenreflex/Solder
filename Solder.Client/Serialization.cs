@@ -609,10 +609,17 @@ public static class ResoniteScriptDeserializer
 
             foreach (var serialized in node.SerializedPorts)
             {
-                var findPort = allLists.FirstOrDefault(i => i.Name == serialized.Name);
-                if (findPort is not null && findPort.Count < serialized.Count)
-                    for (var i = findPort.Count; i < serialized.Count; i++)
-                        findPort.AddElement();
+                try
+                {
+                    var findPort = allLists.FirstOrDefault(i => i.Name == serialized.Name);
+                    if (findPort is not null && findPort.Count < serialized.Count)
+                        for (var i = findPort.Count; i < serialized.Count; i++)
+                            findPort.AddElement();
+                }
+                catch
+                {
+                    // ignored
+                }
             }
 
             foreach (var globalRef in node.GlobalRefs)
@@ -711,41 +718,62 @@ public static class ResoniteScriptDeserializer
         {
             if (!GetFromTo(i, out var fromNode, out var toNode)) continue;
 
-            var impulse = i.FromIndex != -1
-                ? fromNode.NodeImpulseLists.FirstOrDefault(j => j.Name == i.FromName)?.Elements.OfType<ISyncRef>()
-                    .ToList()[i.FromIndex]
-                : fromNode.NodeImpulses.FirstOrDefault(j => j.Name == i.FromName);
-            var operation = i.ToIndex != -1
-                ? toNode.NodeOperationLists.FirstOrDefault(j => j.Name == i.ToName)?.Elements.OfType<INodeOperation>()
-                    .ToList()[i.ToIndex]
-                : toNode.NodeOperations.FirstOrDefault(j => j.Name == i.ToName);
-            if (operation is null && toNode is INodeOperation nodeOperation) operation = nodeOperation;
+            try
+            {
+                var impulse = i.FromIndex != -1
+                    ? fromNode.NodeImpulseLists.FirstOrDefault(j => j.Name == i.FromName)?.Elements.OfType<ISyncRef>()
+                        .ToList()[i.FromIndex]
+                    : fromNode.NodeImpulses.FirstOrDefault(j => j.Name == i.FromName);
+                var operation = i.ToIndex != -1
+                    ? toNode.NodeOperationLists.FirstOrDefault(j => j.Name == i.ToName)?.Elements.OfType<INodeOperation>()
+                        .ToList()[i.ToIndex]
+                    : toNode.NodeOperations.FirstOrDefault(j => j.Name == i.ToName);
+                if (operation is null && toNode is INodeOperation nodeOperation) operation = nodeOperation;
 
-            if (impulse is not null && operation is not null) toNode.TryConnectImpulse(impulse, operation, false);
+                if (impulse is not null && operation is not null) toNode.TryConnectImpulse(impulse, operation, false);
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         foreach (var io in script.Connections.InputOutputConnections)
         {
             if (!GetFromTo(io, out var fromNode, out var toNode)) continue;
 
-            var output = io.FromIndex != -1
-                ? fromNode.NodeOutputLists.FirstOrDefault(j => j.Name == io.FromName)?.Elements.OfType<INodeOutput>()
-                    .ToList()[io.FromIndex]
-                : fromNode.NodeOutputs.FirstOrDefault(j => j.Name == io.FromName);
-            if (output is null && fromNode is INodeOutput nodeOutput) output = nodeOutput;
-            var input = io.ToIndex != -1
-                ? toNode.NodeInputLists.FirstOrDefault(j => j.Name == io.ToName)?.Elements.OfType<ISyncRef>()
-                    .ToList()[io.ToIndex]
-                : toNode.NodeInputs.FirstOrDefault(j => j.Name == io.ToName);
-            if (output is not null && input is not null) toNode.TryConnectInput(input, output, false, false);
+            try
+            {
+                var output = io.FromIndex != -1
+                    ? fromNode.NodeOutputLists.FirstOrDefault(j => j.Name == io.FromName)?.Elements.OfType<INodeOutput>()
+                        .ToList()[io.FromIndex]
+                    : fromNode.NodeOutputs.FirstOrDefault(j => j.Name == io.FromName);
+                if (output is null && fromNode is INodeOutput nodeOutput) output = nodeOutput;
+                var input = io.ToIndex != -1
+                    ? toNode.NodeInputLists.FirstOrDefault(j => j.Name == io.ToName)?.Elements.OfType<ISyncRef>()
+                        .ToList()[io.ToIndex]
+                    : toNode.NodeInputs.FirstOrDefault(j => j.Name == io.ToName);
+                if (output is not null && input is not null) toNode.TryConnectInput(input, output, false, false);
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         foreach (var r in script.Connections.ReferenceConnections)
         {
             if (!GetFromTo(r, out var fromNode, out var toNode)) continue;
 
-            var reference = toNode.NodeReferences.FirstOrDefault(i => i.Name == r.ToName);
-            if (reference is not null) toNode.TryConnectReference(reference, fromNode, false);
+            try
+            {
+                var reference = toNode.NodeReferences.FirstOrDefault(i => i.Name == r.ToName);
+                if (reference is not null) toNode.TryConnectReference(reference, fromNode, false);
+            }
+            catch
+            {
+                // ignored
+            }
         }
 
         return;
