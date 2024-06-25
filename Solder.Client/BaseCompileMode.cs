@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using FrooxEngine;
+using Solder.Shared;
 
 namespace Solder.Client;
 

@@ -19,6 +19,7 @@ using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.Operators;
 using Godot;
 using ProtoFlux.Core;
 using Solder.Editor.Nodes;
+using Solder.Shared;
 using Array = Godot.Collections.Array;
 using FileAccess = Godot.FileAccess;
 using MouseButton = Godot.MouseButton;
@@ -600,10 +601,17 @@ public partial class EditorRoot : Node
 
             if (lastIsOutput)
             {
-                FakeCoderRightClickButton<T>(operators, "GreaterThan", ">");
-                FakeCoderRightClickButton<T>(operators, "GreaterOrEqual", "\u2265");
-                FakeCoderRightClickButton<T>(operators, "LessThan", "<");
-                FakeCoderRightClickButton<T>(operators, "LessOrEqual", "\u2264");
+                if (Coder<T>.SupportsComparison)
+                {
+                    AddPopupMenuConnectButton(operators,">", typeof(ValueGreaterThan<>).MakeGenericType(realType));
+                    AddPopupMenuConnectButton(operators,"\u2265", typeof(ValueGreaterOrEqual<>).MakeGenericType(realType));
+                    AddPopupMenuConnectButton(operators,"<", typeof(ValueLessThan<>).MakeGenericType(realType));
+                    AddPopupMenuConnectButton(operators,"\u2264", typeof(ValueLessOrEqual<>).MakeGenericType(realType));
+                }
+                FakeCoderRightClickButton<T>(operators, "GreaterThan", "> (Vector)");
+                FakeCoderRightClickButton<T>(operators, "GreaterOrEqual", "\u2265 (Vector)");
+                FakeCoderRightClickButton<T>(operators, "LessThan", "< (Vector)");
+                FakeCoderRightClickButton<T>(operators, "LessOrEqual", "\u2264 (Vector)");
             }
             
             if (Coder<T>.SupportsAbs) 

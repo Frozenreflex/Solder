@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using Elements.Core;
 using FrooxEngine;
+using Solder.Shared;
 
 namespace Solder.Client.CompileModes;
 
