@@ -184,6 +184,7 @@ public partial class EditorRoot : Node
         var copy = NodeGraph.Copy();
         var json = JsonSerializer.Serialize(copy, new JsonSerializerOptions()
         {
+            //todo: is this needed?
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         });
         _copy = json;
@@ -1007,7 +1008,7 @@ public partial class EditorRoot : Node
             return;
         }
 
-        var tryTypes = GenericTypeTextEditList.Select(i => WorkerManager.ParseNiceType(i.Text)).ToArray();
+        var tryTypes = GenericTypeTextEditList.Select(i => NiceTypeParser.TryParse(i.Text)).ToArray();
         if (tryTypes.Any(i => i is null))
         {
             GenericTypeCreateButton.Disabled = true;
